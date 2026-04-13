@@ -174,7 +174,9 @@ async def list_reviews(
             headers={"Prefer": "count=exact"},
         )
 
-        if resp.status_code != 200:
+        # PostgREST returns 206 Partial Content when count=exact is combined
+        # with a limit, so accept the 2xx range rather than strict 200.
+        if not 200 <= resp.status_code < 300:
             raise HTTPException(
                 status_code=502,
                 detail=f"PostgREST error (HTTP {resp.status_code}): {resp.text[:500]}",
