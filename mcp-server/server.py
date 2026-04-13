@@ -32,7 +32,11 @@ REVIEW_API_URL = os.environ.get("REVIEW_API_URL", "http://review-api:3000")
 PORT = int(os.environ.get("PORT", "3000"))
 REVIEW_TIMEOUT_SECONDS = float(os.environ.get("REVIEW_TIMEOUT_SECONDS", "180"))
 
-mcp = FastMCP("crown-engineering")
+# host="0.0.0.0" disables FastMCP's Host-header validation — required because
+# engineers connect via `http://poc-containers:9510/sse`, not localhost. Without
+# this, the SSE handler raises "Invalid Host header" / "Request validation
+# failed" for every external request.
+mcp = FastMCP("crown-engineering", host="0.0.0.0")
 
 
 @mcp.tool()
