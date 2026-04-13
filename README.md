@@ -18,13 +18,13 @@ The HTTP API is the source of truth; the MCP server is a thin adapter on top.
 | Directory | Tool | Status |
 | --- | --- | --- |
 | [`review/`](review/) | AI Code Review — FastAPI for engineer pre-push reviews + Jenkins polling pipeline that posts review comments on PRs | Live (port 9506) |
+| [`mcp-server/`](mcp-server/) | Single MCP server exposing every tool's HTTP API to Claude Code | Live (port 9510) — currently exposes `review_diff` |
 
 ## Planned contents
 
 | Tool | Purpose | Status |
 | --- | --- | --- |
 | `unleash/` | Wraps the Unleash admin API so engineers can create feature flags from Claude Code without holding the admin token. See [Unleash MCP Server design notes](https://crowngasandpower-team-delivery.atlassian.net/wiki/spaces/~71202085b1657528bb4defa1a115cc367829fb/pages/110788617/Unleash+MCP+Server+Design+Notes) | Planned |
-| `mcp-server/` | Single MCP server exposing tools backed by every other directory's HTTP API | Planned (added when the first MCP-only consumer lands) |
 
 ## Repo layout
 
@@ -58,6 +58,7 @@ Everything runs on `poc-containers` (192.168.173.140). Monitoring (Prometheus, G
 | PostgreSQL | 9504 | `crown-mcp-postgres` |
 | PostgREST | 9505 | `crown-mcp-postgrest` |
 | Review API | 9506 | `crown-mcp-review-api` |
+| MCP Server | 9510 | `crown-mcp-server` |
 
 ## Running locally
 

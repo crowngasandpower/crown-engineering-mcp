@@ -37,3 +37,14 @@ services:
     ports:
       - "9506:3000"
     restart: unless-stopped
+
+  mcp-server:
+    build: ./mcp-server
+    container_name: crown-mcp-server
+    environment:
+      REVIEW_API_URL: http://review-api:3000
+    ports:
+      - "9510:3000"
+    depends_on:
+      - review-api
+    restart: unless-stopped
