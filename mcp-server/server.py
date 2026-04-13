@@ -17,6 +17,8 @@ Current tools:
     unleash-api GET /flags/{name}).
   - toggle_feature_flag: enable/disable a flag in one environment
     (wraps unleash-api POST /flags/{name}/toggle).
+  - archive_feature_flag: archive (soft-delete) a flag whose rollout
+    is complete (wraps unleash-api DELETE /flags/{name}).
 
 Engineers register this server in ~/.claude/settings.json:
   {
@@ -259,6 +261,31 @@ async def toggle_feature_flag(name: str, environment: str, enabled: bool) -> dic
         )
         resp.raise_for_status()
         return resp.json()
+
+
+@mcp.tool()
+async def archive_feature_flag(name: str) -> dict:
+    """Archive a feature flag.
+
+    Use this when the flag's rollout is complete and the surrounding code
+    (and the else branch) has been cleaned up — i.e. the flag is no longer
+    serving any purpose. Soft-delete: the flag moves to Unleash's archived
+    list and stops evaluating, but can be revived from the Unleash UI if
+    you change your mind.
+
+    Don't archive a flag whose code branches are still in the codebase —
+    the next deploy would hit the unflagged path with no gate.
+
+    Args:
+        name: Flag name, e.g. "CT-2037-Deadlock-Retry".
+
+    Returns:
+        {"name": "<name>", "archived": true} on success.
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.delete(f"{UNLEASH_API_URL}/flags/{name}")
+        resp.raise_for_status()
+    return {"name": name, "archived": True}
 
 
 if __name__ == "__main__":
