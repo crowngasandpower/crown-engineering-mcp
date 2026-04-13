@@ -11,6 +11,12 @@ Current tools:
   - list_reviews: query past reviews — find PRs with outstanding
     high/medium/low issues, filter by engineer or repo (wraps
     review-api GET /reviews).
+  - create_feature_flag: create an Unleash feature flag for a ticket
+    (wraps unleash-api POST /flags).
+  - get_feature_flag: show a flag's per-environment state (wraps
+    unleash-api GET /flags/{name}).
+  - toggle_feature_flag: enable/disable a flag in one environment
+    (wraps unleash-api POST /flags/{name}/toggle).
 
 Engineers register this server in ~/.claude/settings.json:
   {
@@ -29,6 +35,7 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 REVIEW_API_URL = os.environ.get("REVIEW_API_URL", "http://review-api:3000")
+UNLEASH_API_URL = os.environ.get("UNLEASH_API_URL", "http://unleash-api:3000")
 PORT = int(os.environ.get("PORT", "3000"))
 REVIEW_TIMEOUT_SECONDS = float(os.environ.get("REVIEW_TIMEOUT_SECONDS", "180"))
 
@@ -141,6 +148,115 @@ async def list_reviews(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(f"{REVIEW_API_URL}/reviews", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def create_feature_flag(
+    ticket_key: str,
+    short_name: str,
+    description: str = "",
+    type: str = "release",
+) -> dict:
+    """Create an Unleash feature flag for a Jira ticket.
+
+    Use this when starting work on a ticket whose changes should be gated
+    behind a flag. Good candidates: behavioural changes to existing code
+    paths, performance-sensitive changes, anything that benefits from quick
+    rollback in production. Skip for: pure refactors with no behaviour
+    change, doc-only changes, test-only changes, trivial bug fixes.
+
+    At the start of work on a non-trivial ticket, it's reasonable to ask
+    the engineer: "This work should probably be behind a feature flag — want
+    me to create one?". If they say yes, call this with the ticket key and
+    a short, meaningful feature name.
+
+    The flag is created OFF in every environment (development, UAT,
+    production). Engineers write the new behaviour inside the flag
+    condition and keep the existing behaviour in the else branch.
+
+    Idempotent: if a flag with the same name already exists, returns the
+    existing flag with `existed=true`.
+
+    Args:
+        ticket_key: Jira ticket key, e.g. "CT-2037".
+        short_name: Short feature name, alphanumeric + hyphens. Starts with
+                    alphanumeric. Example: "Deadlock-Retry".
+        description: Human description of what the flag gates.
+        type: Unleash flag type. Default "release"; others: "experiment",
+              "operational", "kill-switch", "permission".
+
+    Returns:
+        {
+            "name": "CT-2037-Deadlock-Retry",
+            "project": "core-products",
+            "type": "release",
+            "description": "...",
+            "environments": [
+                {"name": "development", "enabled": false},
+                {"name": "UAT", "enabled": false},
+                {"name": "production", "enabled": false}
+            ],
+            "existed": false
+        }
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            f"{UNLEASH_API_URL}/flags",
+            json={
+                "ticket_key": ticket_key,
+                "short_name": short_name,
+                "description": description,
+                "type": type,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def get_feature_flag(name: str) -> dict:
+    """Retrieve a feature flag's full state across all environments.
+
+    Use this to answer questions like "is CT-2037-Deadlock-Retry enabled
+    in production?" or "show me the current state of my flag".
+
+    Args:
+        name: Flag name, e.g. "CT-2037-Deadlock-Retry".
+
+    Returns:
+        Same shape as create_feature_flag — includes the per-environment
+        `enabled` flag under `.environments`.
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(f"{UNLEASH_API_URL}/flags/{name}")
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def toggle_feature_flag(name: str, environment: str, enabled: bool) -> dict:
+    """Enable or disable a feature flag in one environment.
+
+    Be careful with `environment="production"` — that's a live change. For
+    non-trivial rollouts, flip development first, verify, then UAT, then
+    production.
+
+    Args:
+        name: Flag name, e.g. "CT-2037-Deadlock-Retry".
+        environment: "development", "UAT", or "production" (case-insensitive;
+                     "dev" and "prod" also accepted).
+        enabled: True to enable, False to disable.
+
+    Returns:
+        {"name": "<canonical env>", "enabled": <bool>}
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            f"{UNLEASH_API_URL}/flags/{name}/toggle",
+            json={"environment": environment, "enabled": enabled},
+        )
         resp.raise_for_status()
         return resp.json()
 

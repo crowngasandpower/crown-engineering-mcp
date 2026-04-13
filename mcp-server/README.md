@@ -16,6 +16,10 @@ Claude Code  ──MCP──▶  mcp-server  ──HTTP──▶  review-api
 | Tool | Backed by | Description |
 | --- | --- | --- |
 | `review_diff(diff)` | `review-api` (`POST /review`) | Run AI code review against a unified git diff. Returns summary, verdict, issues, severity counts. |
+| `list_reviews(...)` | `review-api` (`GET /reviews`) | Query past reviews; filter by engineer/repo/min-severity/since and sort most-problematic first. |
+| `create_feature_flag(ticket_key, short_name, ...)` | `unleash-api` (`POST /flags`) | Create an Unleash feature flag for a Jira ticket, off in every environment. Idempotent. |
+| `get_feature_flag(name)` | `unleash-api` (`GET /flags/{name}`) | Full flag state including per-environment enabled flags. |
+| `toggle_feature_flag(name, environment, enabled)` | `unleash-api` (`POST /flags/{name}/toggle`) | Enable or disable a flag in one environment. |
 
 ## Engineer setup
 

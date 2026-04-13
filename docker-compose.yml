@@ -38,13 +38,26 @@ services:
       - "9506:3000"
     restart: unless-stopped
 
+  unleash-api:
+    build: ./unleash/api
+    container_name: crown-mcp-unleash-api
+    environment:
+      UNLEASH_BASE_URL: ${UNLEASH_BASE_URL:-https://eu.app.getunleash.io/eull0051}
+      UNLEASH_PROJECT: ${UNLEASH_PROJECT:-core-products}
+      UNLEASH_ADMIN_TOKEN: ${UNLEASH_ADMIN_TOKEN}
+    ports:
+      - "9511:3000"
+    restart: unless-stopped
+
   mcp-server:
     build: ./mcp-server
     container_name: crown-mcp-server
     environment:
       REVIEW_API_URL: http://review-api:3000
+      UNLEASH_API_URL: http://unleash-api:3000
     ports:
       - "9510:3000"
     depends_on:
       - review-api
+      - unleash-api
     restart: unless-stopped
