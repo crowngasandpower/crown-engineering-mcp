@@ -1,0 +1,39 @@
+name: crown-engineering-mcp
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crown-mcp-postgres
+    environment:
+      POSTGRES_USER: codereview
+      POSTGRES_PASSWORD: codereview
+      POSTGRES_DB: codereview
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "9504:5432"
+    restart: unless-stopped
+
+  postgrest:
+    image: postgrest/postgrest:latest
+    container_name: crown-mcp-postgrest
+    environment:
+      PGRST_DB_URI: postgres://codereview:codereview@postgres:5432/codereview
+      PGRST_DB_ANON_ROLE: codereview
+      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:9505
+    ports:
+      - "9505:3000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  review-api:
+    build: ./review/api
+    container_name: crown-mcp-review-api
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: claude-sonnet-4-6
+    ports:
+      - "9506:3000"
+    restart: unless-stopped

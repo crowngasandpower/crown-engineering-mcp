@@ -1,0 +1,59 @@
+// AI Code Review Pipeline
+//
+// Two-phase approach per run:
+//   Phase 1: Review PRs opened TODAY (always, highest priority)
+//   Phase 2: Backfill one historical day, working backwards from yesterday
+//
+// State is persisted to STATE_DIR between runs so the backfill progresses.
+//
+// Required Jenkins credentials:
+//   anthropic-api-key  — Claude API key (Secret text)
+//   github-token       — GitHub PAT with repo scope (Secret text)
+//
+// Required Jenkins plugins:
+//   - Credentials Binding
+
+pipeline {
+    agent any
+
+    triggers {
+        // Poll every 5 minutes
+        cron('H/5 * * * *')
+    }
+
+    environment {
+        GITHUB_ORG = 'crowngasandpower'
+        CLAUDE_MODEL = 'claude-sonnet-4-6'
+        BOT_MARKER = 'AI Code Review (Claude)'
+        PUSHGATEWAY_URL = 'http://192.168.173.140:9501'
+        POSTGREST_URL = 'http://192.168.173.140:9505'
+        // Persist backfill state between runs — must survive container restarts
+        STATE_DIR = '/var/jenkins_home/ai-code-review-state'
+    }
+
+    stages {
+        stage('Scan and Review') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'anthropic-api-key', variable: 'ANTHROPIC_API_KEY'),
+                    string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN'),
+                ]) {
+                    dir('review') {
+                        sh '''
+                            chmod +x scripts/poll-and-review.sh
+                            chmod +x scripts/review-pr.sh
+                            chmod +x scripts/github-utils.sh
+                            ./scripts/poll-and-review.sh
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "AI Code Review poll complete"
+        }
+    }
+}
