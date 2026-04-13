@@ -11,15 +11,20 @@ the endpoint URL — no credentials on their machine.
 
 import os
 import json
+import re
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
+
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 app = FastAPI(title="AI Code Review API", version="1.0.0")
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 MAX_DIFF_CHARS = int(os.environ.get("MAX_DIFF_CHARS", "500000"))
+POSTGREST_URL = os.environ.get("POSTGREST_URL", "http://postgrest:3000")
+GITHUB_ORG = os.environ.get("GITHUB_ORG", "crowngasandpower")
 
 SYSTEM_PROMPT = """You are an expert code reviewer for Crown Gas and Power's Laravel applications. Review the provided pull request diff and identify issues in these categories:
 
@@ -101,6 +106,110 @@ class ReviewResponse(BaseModel):
 @app.get("/health")
 async def health():
     return {"status": "ok", "model": CLAUDE_MODEL}
+
+
+class ReviewSummary(BaseModel):
+    repo: str
+    pr: int
+    pr_url: str
+    engineer: str
+    pr_title: str
+    pr_created_at: str
+    head_sha: str
+    high: int
+    medium: int
+    low: int
+    total: int
+    lines_changed: int
+    reviewed_at: str
+
+
+class ReviewListResponse(BaseModel):
+    total_matched: int
+    reviews: list[ReviewSummary]
+
+
+@app.get("/reviews", response_model=ReviewListResponse)
+async def list_reviews(
+    engineer: str | None = Query(None, description="Filter by engineer (exact match)"),
+    repo: str | None = Query(None, description="Filter by repo name (exact match)"),
+    min_high: int = Query(0, ge=0, description="Minimum high-severity count"),
+    min_medium: int = Query(0, ge=0, description="Minimum medium-severity count"),
+    min_low: int = Query(0, ge=0, description="Minimum low-severity count"),
+    since: str | None = Query(None, description="Only PRs created on/after this ISO date"),
+    limit: int = Query(50, ge=1, le=500, description="Max rows returned"),
+):
+    """List reviewed PRs, sorted most-problematic first.
+
+    Wraps PostgREST so callers don't need to know the table or its query
+    syntax. Default sort is high desc, medium desc, low desc, total desc —
+    most problematic at the top. All filters are AND-ed.
+    """
+    pg_params: list[tuple[str, str]] = []
+    if engineer:
+        pg_params.append(("engineer", f"eq.{engineer}"))
+    if repo:
+        pg_params.append(("repo", f"eq.{repo}"))
+    if min_high > 0:
+        pg_params.append(("high", f"gte.{min_high}"))
+    if min_medium > 0:
+        pg_params.append(("medium", f"gte.{min_medium}"))
+    if min_low > 0:
+        pg_params.append(("low", f"gte.{min_low}"))
+    if since:
+        if not ISO_DATE_RE.match(since):
+            raise HTTPException(
+                status_code=422,
+                detail="`since` must be an ISO date in YYYY-MM-DD format",
+            )
+        pg_params.append(("pr_created_at", f"gte.{since}"))
+
+    pg_params.append(("order", "high.desc,medium.desc,low.desc,total.desc"))
+    pg_params.append(("limit", str(limit)))
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{POSTGREST_URL}/reviews",
+            params=pg_params,
+            headers={"Prefer": "count=exact"},
+        )
+
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail=f"PostgREST error (HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+
+        rows = resp.json()
+        # Content-Range looks like "0-12/47" — last segment is the total match count
+        total_matched = len(rows)
+        content_range = resp.headers.get("content-range", "")
+        if "/" in content_range:
+            try:
+                total_matched = int(content_range.rsplit("/", 1)[1])
+            except (ValueError, IndexError):
+                pass
+
+    reviews = [
+        ReviewSummary(
+            repo=row["repo"],
+            pr=row["pr"],
+            pr_url=f"https://github.com/{GITHUB_ORG}/{row['repo']}/pull/{row['pr']}",
+            engineer=row["engineer"],
+            pr_title=row.get("pr_title", "") or "",
+            pr_created_at=row.get("pr_created_at", "") or "",
+            head_sha=row.get("head_sha", "") or "",
+            high=row.get("high", 0) or 0,
+            medium=row.get("medium", 0) or 0,
+            low=row.get("low", 0) or 0,
+            total=row.get("total", 0) or 0,
+            lines_changed=row.get("lines_changed", 0) or 0,
+            reviewed_at=row.get("reviewed_at", "") or "",
+        )
+        for row in rows
+    ]
+
+    return ReviewListResponse(total_matched=total_matched, reviews=reviews)
 
 
 @app.post("/review", response_model=ReviewResponse)
