@@ -157,6 +157,31 @@ async def get_flag(name: str):
         return await _fetch_flag(client, name)
 
 
+@app.delete("/flags/{name}", status_code=204)
+async def archive_flag(name: str):
+    """Archive a feature flag.
+
+    Unleash treats archive as soft-delete: the flag moves to the archived
+    list and stops evaluating, but can be revived from the Unleash UI if
+    needed. Use this when the flag's rollout is complete and the
+    surrounding code (and the else branch) has been cleaned up.
+    """
+    validate_flag_name(name)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.delete(
+            f"{UNLEASH_BASE_URL}/api/admin/projects/{UNLEASH_PROJECT}/features/{name}",
+            headers={"Authorization": UNLEASH_ADMIN_TOKEN},
+        )
+        if resp.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"Flag '{name}' not found")
+        if not 200 <= resp.status_code < 300:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Unleash archive error (HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+    return None
+
+
 @app.post("/flags/{name}/toggle", response_model=EnvironmentState)
 async def toggle_flag(name: str, req: ToggleRequest):
     """Enable or disable a flag in one environment."""

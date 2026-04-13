@@ -20,6 +20,7 @@ Claude Code  ──MCP──▶  mcp-server  ──HTTP──▶  review-api
 | `create_feature_flag(ticket_key, short_name, ...)` | `unleash-api` (`POST /flags`) | Create an Unleash feature flag for a Jira ticket, off in every environment. Idempotent. |
 | `get_feature_flag(name)` | `unleash-api` (`GET /flags/{name}`) | Full flag state including per-environment enabled flags. |
 | `toggle_feature_flag(name, environment, enabled)` | `unleash-api` (`POST /flags/{name}/toggle`) | Enable or disable a flag in one environment. |
+| `archive_feature_flag(name)` | `unleash-api` (`DELETE /flags/{name}`) | Archive a flag whose rollout is complete. Soft-delete; can be revived from Unleash UI. |
 
 ## Engineer setup
 

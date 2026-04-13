@@ -19,7 +19,7 @@ The HTTP API is the source of truth; the MCP server is a thin adapter on top.
 | --- | --- | --- |
 | [`review/`](review/) | AI Code Review — FastAPI for engineer pre-push reviews + Jenkins polling pipeline that posts review comments on PRs | Live (port 9506) |
 | [`unleash/`](unleash/) | Feature flag management — wraps the Unleash admin API so engineers (and Claude) can create, inspect, and toggle flags without holding admin credentials | Live (port 9511) |
-| [`mcp-server/`](mcp-server/) | Single MCP server exposing every tool's HTTP API to Claude Code | Live (port 9510) — exposes `review_diff`, `list_reviews`, `create_feature_flag`, `get_feature_flag`, `toggle_feature_flag` |
+| [`mcp-server/`](mcp-server/) | Single MCP server exposing every tool's HTTP API to Claude Code | Live (port 9510) — exposes `review_diff`, `list_reviews`, `create_feature_flag`, `get_feature_flag`, `toggle_feature_flag`, `archive_feature_flag` |
 
 ## Repo layout
 

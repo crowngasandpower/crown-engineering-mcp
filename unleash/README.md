@@ -9,6 +9,7 @@ Thin wrapper over the Unleash admin API. Lets engineers (and Claude, via the MCP
 | `POST` | `/flags` | Create a new flag for a ticket. Idempotent (409 → returns existing). |
 | `GET` | `/flags/{name}` | Full flag state including per-env enabled flags. |
 | `POST` | `/flags/{name}/toggle` | Enable or disable in one environment. Body: `{environment, enabled}`. |
+| `DELETE` | `/flags/{name}` | Archive (soft-delete) a flag whose rollout is complete. Returns 204. |
 
 ### Naming
 
@@ -52,5 +53,6 @@ curl -s http://poc-containers:9511/flags/CT-2037-Deadlock-Retry
 ## Out of scope (for now)
 
 - **Strategies** — new flags are created with whatever default Unleash provides. Fine-grained strategy config (gradual rollout, user-targeting, constraints) is done in the Unleash UI. Could be exposed here later if there's demand.
-- **Archive / list** — not exposed yet; engineers can use the Unleash UI. Cheap to add if needed.
+- **List** — not exposed yet; engineers can use the Unleash UI. Cheap to add if needed.
+- **Revive** — Unleash archives are reversible from the UI. Not exposed via the API because reviving an archived flag is a deliberate operation that benefits from a human eyeballing the archived list first.
 - **Per-environment tokens** — intentionally not used. The admin token handles everything; single source of credentials, single point of rotation.
