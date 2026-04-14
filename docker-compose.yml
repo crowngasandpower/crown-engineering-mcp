@@ -45,6 +45,9 @@ services:
       UNLEASH_BASE_URL: ${UNLEASH_BASE_URL:-https://eu.app.getunleash.io/eull0051}
       UNLEASH_PROJECT: ${UNLEASH_PROJECT:-core-products}
       UNLEASH_ADMIN_TOKEN: ${UNLEASH_ADMIN_TOKEN}
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-https://crowngasandpower-team-delivery.atlassian.net}
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
     ports:
       - "9511:3000"
     restart: unless-stopped

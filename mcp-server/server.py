@@ -161,21 +161,21 @@ async def list_reviews(
 
 @mcp.tool()
 async def get_api_tokens(type: str | None = None) -> dict:
-    """Retrieve Unleash API tokens for use in application configuration.
+    """Retrieve Unleash API tokens and connection URLs for app configuration.
 
     Crown uses two types of environment-scoped token — choose the right
     one for the context:
 
     **client** tokens (server-side / backend):
       - Used by Laravel apps via `j-webb/laravel-unleash` or `crown/unleash`
-      - Connect to the Client API: `{UNLEASH_URL}/api/client`
+      - Connect to the **client_api_url** returned in the response
       - Safe on servers, NEVER safe in browser code
       - Each token is scoped to one environment (development, UAT, production)
 
     **frontend** tokens (browser / Vue SPA):
       - Used by JavaScript browser SDKs (`@unleash/proxy-client-react`,
         `unleash-proxy-client`)
-      - Connect to the Frontend API: `{UNLEASH_URL}/api/frontend`
+      - Connect to the **frontend_api_url** returned in the response
       - Designed to be safe in browser code — only returns evaluated
         true/false results, never strategies or internal details
       - Each token is scoped to one environment
@@ -184,14 +184,23 @@ async def get_api_tokens(type: str | None = None) -> dict:
       1. The app's runtime: backend → client, frontend → frontend
       2. The target environment: development, UAT, or production
 
+    Use the returned URLs when configuring the Unleash SDK. For example,
+    in a Laravel app's .env: UNLEASH_URL=<client_api_url> and
+    UNLEASH_API_KEY=<token secret>. Never hardcode tokens in committed
+    files — put them in .env.
+
     Admin tokens are never returned — they stay inside the wrapper service.
 
     Args:
         type: Optional filter — "client" or "frontend". Omit to get both.
 
     Returns:
-        {"tokens": [{"name": "...", "type": "client|frontend",
-          "environment": "...", "project": "...", "secret": "..."}]}
+        {
+            "unleash_url": "https://...",
+            "client_api_url": "https://.../api/client",
+            "frontend_api_url": "https://.../api/frontend",
+            "tokens": [{"name", "type", "environment", "project", "secret"}]
+        }
     """
     params = {}
     if type:
@@ -199,7 +208,7 @@ async def get_api_tokens(type: str | None = None) -> dict:
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await client.get(f"{UNLEASH_API_URL}/tokens", params=params)
         resp.raise_for_status()
-        return {"tokens": resp.json()}
+        return resp.json()
 
 
 @mcp.tool()

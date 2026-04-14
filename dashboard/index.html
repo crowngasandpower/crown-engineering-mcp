@@ -641,6 +641,16 @@
         }
         updateStats();
         toast(`${name} ${enabled ? 'enabled' : 'disabled'} in ${environment}`, 'success');
+
+        // Create cleanup ticket when enabling in production
+        if (enabled && environment.toLowerCase() === 'production') {
+          try {
+            const ticket = await apiFetch(`/flags/${name}/cleanup-ticket`, { method: 'POST' });
+            toast(`Cleanup ticket created: ${ticket.key} (due ${ticket.due_date})`, 'success');
+          } catch (err) {
+            toast(`Flag enabled, but cleanup ticket failed: ${err.message}`, 'error');
+          }
+        }
       } catch (err) {
         toast(`Toggle failed: ${err.message}`, 'error');
         if (toggle) toggle.checked = !enabled;
