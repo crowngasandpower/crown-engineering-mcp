@@ -6,6 +6,7 @@ in this service's env; engineers call the HTTP endpoints (or go through
 the MCP server for Claude-driven workflows).
 
 Endpoints:
+  GET  /tokens                 — list API tokens (client + frontend)
   GET  /flags                  — list all flags in the project
   POST /flags                  — create a flag for a Jira ticket
   GET  /flags/{name}           — full flag details, including per-env state
@@ -80,6 +81,14 @@ def canonical_env(env: str) -> str:
     return canonical
 
 
+class ApiToken(BaseModel):
+    name: str
+    type: str  # "client", "frontend", or "admin"
+    environment: str | None = None
+    project: str | None = None
+    secret: str
+
+
 class CreateFlagRequest(BaseModel):
     ticket_key: str = Field(..., description="Jira ticket key, e.g. CT-2037")
     short_name: str = Field(..., description="Feature short-name, e.g. Deadlock-Retry")
@@ -110,6 +119,46 @@ class ToggleRequest(BaseModel):
 @app.get("/health")
 async def health():
     return {"status": "ok", "project": UNLEASH_PROJECT}
+
+
+@app.get("/tokens", response_model=list[ApiToken])
+async def list_tokens(type: str | None = None):
+    """List API tokens, optionally filtered by type (client, frontend, admin).
+
+    Returns tokens for the current project only. Admin tokens (which are
+    not project-scoped) are excluded — they should never leave this service.
+    """
+    headers = {"Authorization": UNLEASH_ADMIN_TOKEN}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{UNLEASH_BASE_URL}/api/admin/api-tokens",
+            headers=headers,
+        )
+        if not 200 <= resp.status_code < 300:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Unleash tokens error (HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+        data = resp.json()
+        tokens = []
+        for t in data.get("tokens", []):
+            # Skip admin tokens — they must never leave this service
+            if t.get("type") == "admin":
+                continue
+            # Only include tokens scoped to our project (or wildcard)
+            token_project = t.get("project") or t.get("projects", ["*"])[0] if isinstance(t.get("projects"), list) else t.get("project", "*")
+            if token_project not in (UNLEASH_PROJECT, "*"):
+                continue
+            if type and t.get("type") != type:
+                continue
+            tokens.append(ApiToken(
+                name=t.get("tokenName", t.get("username", "unknown")),
+                type=t["type"],
+                environment=t.get("environment"),
+                project=token_project,
+                secret=t["secret"],
+            ))
+        return tokens
 
 
 @app.post("/flags", response_model=FeatureFlag)
