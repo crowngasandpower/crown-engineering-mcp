@@ -194,6 +194,14 @@
       color: var(--text-muted);
     }
 
+    .flag-app {
+      font-size: 14px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .flag-description {
       color: var(--text-muted);
       font-size: 15px;
@@ -589,6 +597,7 @@
     const API_BASE = '/api';
 
     let flags = [];
+    let flagApps = {};  // {flagName: {ticket_key, epic_key, epic_summary}}
     let confirmCallback = null;
 
     // --- API calls ---
@@ -611,8 +620,20 @@
         flags = await apiFetch('/flags');
         renderTable();
         updateStats();
+        // Load app mappings in the background (non-blocking)
+        loadFlagApps();
       } catch (err) {
         toast(`Failed to load flags: ${err.message}`, 'error');
+      }
+    }
+
+    async function loadFlagApps() {
+      try {
+        flagApps = await apiFetch('/flags/apps');
+        renderTable();  // Re-render with app column populated
+      } catch (err) {
+        // Silently fail — app column just stays empty
+        console.warn('Failed to load flag app mappings:', err.message);
       }
     }
 
@@ -730,7 +751,8 @@
 
       let html = `<table>
         <colgroup>
-          <col style="width:28%">
+          <col style="width:24%">
+          <col style="width:10%">
           <col style="width:10%">
           <col>
           <col style="width:90px">
@@ -742,6 +764,7 @@
           <tr>
             <th>Flag</th>
             <th>Type</th>
+            <th>App</th>
             <th>Description</th>
             <th class="env-header">Dev</th>
             <th class="env-header">UAT</th>
@@ -757,9 +780,13 @@
           envMap[env.name] = env.enabled;
         }
 
+        const appInfo = flagApps[flag.name];
+        const appLabel = appInfo?.epic_summary || '';
+
         html += `<tr>
           <td class="flag-name">${esc(flag.name)}</td>
           <td><span class="flag-type">${esc(flag.type)}</span></td>
+          <td class="flag-app" title="${appInfo?.epic_key ? esc(appInfo.epic_key) + ': ' + esc(appLabel) : ''}">${esc(appLabel) || '<span style="color:var(--text-muted)">-</span>'}</td>
           <td class="flag-description" title="${esc(flag.description)}">${esc(flag.description) || '-'}</td>`;
 
         for (const envName of ENV_ORDER) {

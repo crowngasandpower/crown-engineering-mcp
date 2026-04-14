@@ -441,6 +441,88 @@ async def create_cleanup_ticket(name: str):
         )
 
 
+@app.get("/flags/apps")
+async def get_flag_apps(flags: str = ""):
+    """Batch-lookup parent epic for each flag's Jira ticket.
+
+    Accepts a comma-separated list of flag names (or, if empty, fetches all
+    flags from Unleash first). Extracts ticket keys (CT-NNNN) from each name,
+    queries Jira in a single JQL call, and returns a mapping of flag name to
+    app info derived from the parent epic.
+
+    Returns: {flag_name: {ticket_key, epic_key, epic_summary}} for each flag.
+    Flags whose ticket has no parent epic return null for epic fields.
+    """
+    if not JIRA_EMAIL or not JIRA_API_TOKEN:
+        raise HTTPException(
+            status_code=503,
+            detail="Jira credentials not configured (JIRA_EMAIL / JIRA_API_TOKEN)",
+        )
+
+    # Parse flag names — either from query param or by fetching all flags
+    if flags:
+        flag_names = [f.strip() for f in flags.split(",") if f.strip()]
+    else:
+        all_flags = await list_flags()
+        flag_names = [f.name for f in all_flags]
+
+    # Extract ticket keys from flag names
+    ticket_to_flags: dict[str, list[str]] = {}
+    for name in flag_names:
+        match = re.match(r"^(CT-\d+)", name)
+        if match:
+            key = match.group(1)
+            ticket_to_flags.setdefault(key, []).append(name)
+
+    if not ticket_to_flags:
+        return {}
+
+    auth_value = base64.b64encode(f"{JIRA_EMAIL}:{JIRA_API_TOKEN}".encode()).decode()
+    jira_headers = {
+        "Authorization": f"Basic {auth_value}",
+        "Content-Type": "application/json",
+    }
+
+    # Single JQL query for all ticket keys
+    keys_csv = ", ".join(ticket_to_flags.keys())
+    jql = f"key in ({keys_csv})"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(
+            f"{JIRA_BASE_URL}/rest/api/3/search",
+            params={"jql": jql, "maxResults": 100, "fields": "parent,summary"},
+            headers=jira_headers,
+        )
+        if not 200 <= resp.status_code < 300:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Jira search error (HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+
+        issues = resp.json().get("issues", [])
+        ticket_info: dict[str, dict] = {}
+        for issue in issues:
+            key = issue["key"]
+            parent = issue.get("fields", {}).get("parent")
+            ticket_info[key] = {
+                "epic_key": parent.get("key") if parent else None,
+                "epic_summary": parent.get("fields", {}).get("summary") if parent else None,
+            }
+
+    # Map back to flag names
+    result = {}
+    for ticket_key, flag_list in ticket_to_flags.items():
+        info = ticket_info.get(ticket_key, {})
+        for flag_name in flag_list:
+            result[flag_name] = {
+                "ticket_key": ticket_key,
+                "epic_key": info.get("epic_key"),
+                "epic_summary": info.get("epic_summary"),
+            }
+
+    return result
+
+
 async def _fetch_flag(client: httpx.AsyncClient, name: str) -> FeatureFlag:
     resp = await client.get(
         f"{UNLEASH_BASE_URL}/api/admin/projects/{UNLEASH_PROJECT}/features/{name}",
