@@ -137,6 +137,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
     }
 
     thead th {
@@ -189,6 +190,12 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    .col-flag { width: 25%; }
+    .col-type { width: 10%; }
+    .col-desc { width: auto; }
+    .col-env { width: 70px; }
+    .col-actions { width: 80px; }
 
     .env-toggle {
       display: flex;
@@ -701,13 +708,13 @@
       let html = `<table>
         <thead>
           <tr>
-            <th>Flag</th>
-            <th>Type</th>
-            <th>Description</th>
-            <th class="env-header">Dev</th>
-            <th class="env-header">UAT</th>
-            <th class="env-header">Prod <span class="prod-warning">live</span></th>
-            <th></th>
+            <th class="col-flag">Flag</th>
+            <th class="col-type">Type</th>
+            <th class="col-desc">Description</th>
+            <th class="env-header col-env">Dev</th>
+            <th class="env-header col-env">UAT</th>
+            <th class="env-header col-env">Prod <span class="prod-warning">live</span></th>
+            <th class="col-actions"></th>
           </tr>
         </thead>
         <tbody>`;
