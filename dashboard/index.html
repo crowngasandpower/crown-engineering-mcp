@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feature Flags - Crown Engineering</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-hover: #222632;
+      --border: #2a2e3b;
+      --text: #e1e4eb;
+      --text-muted: #8b8fa3;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.12);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.12);
+      --yellow: #eab308;
+      --yellow-bg: rgba(234, 179, 8, 0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header h1 .icon {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 500;
+    }
+
+    .btn:hover { background: var(--surface-hover); }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .btn-danger {
+      color: var(--red);
+      border-color: var(--red);
+    }
+
+    .btn-danger:hover { background: var(--red-bg); }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      flex: 1;
+    }
+
+    .stat-card .label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface-hover); }
+
+    td {
+      padding: 14px 16px;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+
+    .flag-name {
+      font-weight: 600;
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 13px;
+    }
+
+    .flag-type {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      background: var(--surface-hover);
+      color: var(--text-muted);
+    }
+
+    .flag-description {
+      color: var(--text-muted);
+      font-size: 13px;
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .env-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle .slider {
+      position: absolute;
+      inset: 0;
+      background: #3a3f4f;
+      border-radius: 12px;
+      transition: background 0.2s;
+    }
+
+    .toggle .slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .slider {
+      background: var(--green);
+    }
+
+    .toggle input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    .toggle.loading .slider {
+      opacity: 0.5;
+    }
+
+    .toggle.loading {
+      pointer-events: none;
+    }
+
+    .flag-actions {
+      text-align: right;
+    }
+
+    .flag-actions button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    .flag-actions button:hover {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 440px;
+      max-width: 90vw;
+    }
+
+    .modal h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .form-group .hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    /* Toast notifications */
+    .toast-container {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      animation: slideIn 0.2s ease-out;
+      min-width: 260px;
+    }
+
+    .toast.success {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .toast.error {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+
+    .loading-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .env-header { text-align: center; }
+
+    .prod-warning {
+      color: var(--yellow);
+      font-size: 11px;
+      display: block;
+    }
+
+    /* Confirm dialog */
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 150;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .confirm-overlay.active {
+      display: flex;
+    }
+
+    .confirm-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 380px;
+      max-width: 90vw;
+      text-align: center;
+    }
+
+    .confirm-box h3 {
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .confirm-box p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    .confirm-box code {
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .confirm-actions {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>
+      <span class="icon">F</span>
+      Feature Flags
+    </h1>
+    <div class="header-actions">
+      <button class="btn" onclick="loadFlags()" title="Refresh">Refresh</button>
+      <button class="btn btn-primary" onclick="openCreateModal()">Create Flag</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="stats">
+      <div class="stat-card">
+        <div class="label">Total Flags</div>
+        <div class="value" id="stat-total">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Enabled in Dev</div>
+        <div class="value" id="stat-dev">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Enabled in UAT</div>
+        <div class="value" id="stat-uat">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Enabled in Prod</div>
+        <div class="value" id="stat-prod">-</div>
+      </div>
+    </div>
+
+    <div class="table-container" id="table-container">
+      <div class="loading-state" id="loading-state">
+        <div class="spinner"></div>
+        <p>Loading flags...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Create flag modal -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <h2>Create Feature Flag</h2>
+      <form id="create-form" onsubmit="createFlag(event)">
+        <div class="form-group">
+          <label for="ticket-key">Jira Ticket</label>
+          <input type="text" id="ticket-key" placeholder="CT-2037" required pattern="CT-\d+" />
+          <div class="hint">Format: CT-&lt;number&gt;</div>
+        </div>
+        <div class="form-group">
+          <label for="short-name">Feature Name</label>
+          <input type="text" id="short-name" placeholder="Deadlock-Retry" required pattern="[A-Za-z0-9][A-Za-z0-9-]*" />
+          <div class="hint">Alphanumeric and hyphens, starts with letter or number</div>
+        </div>
+        <div class="form-group">
+          <label for="flag-type">Type</label>
+          <select id="flag-type">
+            <option value="release">Release</option>
+            <option value="experiment">Experiment</option>
+            <option value="operational">Operational</option>
+            <option value="kill-switch">Kill Switch</option>
+            <option value="permission">Permission</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" placeholder="What does this flag gate?"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeCreateModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="create-btn">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm dialog (for production toggles and archive) -->
+  <div class="confirm-overlay" id="confirm-overlay">
+    <div class="confirm-box">
+      <h3 id="confirm-title">Are you sure?</h3>
+      <p id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button class="btn" onclick="cancelConfirm()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-btn" onclick="executeConfirm()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    // Configuration — resolve the API base URL relative to where this page is served.
+    // In Docker Compose the dashboard container proxies /api to unleash-api:3000,
+    // so we always use the same origin.
+    const API_BASE = '/api';
+
+    let flags = [];
+    let confirmCallback = null;
+
+    // --- API calls ---
+
+    async function apiFetch(path, options = {}) {
+      const resp = await fetch(`${API_BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options,
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(body.detail || `HTTP ${resp.status}`);
+      }
+      if (resp.status === 204) return null;
+      return resp.json();
+    }
+
+    async function loadFlags() {
+      try {
+        flags = await apiFetch('/flags');
+        renderTable();
+        updateStats();
+      } catch (err) {
+        toast(`Failed to load flags: ${err.message}`, 'error');
+      }
+    }
+
+    async function toggleFlag(name, environment, enabled, skipConfirm = false) {
+      if (!skipConfirm && environment.toLowerCase() === 'production') {
+        showConfirm(
+          'Production Toggle',
+          `${enabled ? 'Enable' : 'Disable'} <code>${name}</code> in <strong>production</strong>?`,
+          () => toggleFlag(name, environment, enabled, true),
+        );
+        return;
+      }
+
+      const toggle = document.querySelector(`[data-flag="${name}"][data-env="${environment}"]`);
+      if (toggle) toggle.closest('.toggle').classList.add('loading');
+
+      try {
+        await apiFetch(`/flags/${name}/toggle`, {
+          method: 'POST',
+          body: JSON.stringify({ environment, enabled }),
+        });
+        // Update local state
+        const flag = flags.find(f => f.name === name);
+        if (flag) {
+          const env = flag.environments.find(e => e.name === environment);
+          if (env) env.enabled = enabled;
+        }
+        updateStats();
+        toast(`${name} ${enabled ? 'enabled' : 'disabled'} in ${environment}`, 'success');
+      } catch (err) {
+        toast(`Toggle failed: ${err.message}`, 'error');
+        // Revert the checkbox
+        if (toggle) toggle.checked = !enabled;
+      } finally {
+        if (toggle) toggle.closest('.toggle').classList.remove('loading');
+      }
+    }
+
+    async function archiveFlag(name) {
+      showConfirm(
+        'Archive Flag',
+        `Archive <code>${name}</code>? It will stop evaluating but can be revived from the Unleash UI.`,
+        async () => {
+          try {
+            await apiFetch(`/flags/${name}`, { method: 'DELETE' });
+            flags = flags.filter(f => f.name !== name);
+            renderTable();
+            updateStats();
+            toast(`${name} archived`, 'success');
+          } catch (err) {
+            toast(`Archive failed: ${err.message}`, 'error');
+          }
+        },
+      );
+    }
+
+    async function createFlag(e) {
+      e.preventDefault();
+      const btn = document.getElementById('create-btn');
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const flag = await apiFetch('/flags', {
+          method: 'POST',
+          body: JSON.stringify({
+            ticket_key: document.getElementById('ticket-key').value,
+            short_name: document.getElementById('short-name').value,
+            type: document.getElementById('flag-type').value,
+            description: document.getElementById('description').value,
+          }),
+        });
+
+        if (flag.existed) {
+          toast(`Flag ${flag.name} already exists`, 'error');
+        } else {
+          flags.push(flag);
+          renderTable();
+          updateStats();
+          toast(`${flag.name} created`, 'success');
+        }
+        closeCreateModal();
+      } catch (err) {
+        toast(`Create failed: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create';
+      }
+    }
+
+    // --- Rendering ---
+
+    const ENV_ORDER = ['development', 'UAT', 'production'];
+    const ENV_LABELS = { development: 'Dev', UAT: 'UAT', production: 'Prod' };
+
+    function renderTable() {
+      const container = document.getElementById('table-container');
+
+      if (flags.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">--</div>
+            <h3>No feature flags</h3>
+            <p>Create your first flag to get started.</p>
+          </div>`;
+        return;
+      }
+
+      let html = `<table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th class="env-header">Dev</th>
+            <th class="env-header">UAT</th>
+            <th class="env-header">Prod <span class="prod-warning">live</span></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      for (const flag of flags) {
+        const envMap = {};
+        for (const env of flag.environments) {
+          envMap[env.name] = env.enabled;
+        }
+
+        html += `<tr>
+          <td class="flag-name">${esc(flag.name)}</td>
+          <td><span class="flag-type">${esc(flag.type)}</span></td>
+          <td class="flag-description" title="${esc(flag.description)}">${esc(flag.description) || '-'}</td>`;
+
+        for (const envName of ENV_ORDER) {
+          const enabled = envMap[envName] || false;
+          html += `<td class="env-toggle">
+            <label class="toggle">
+              <input type="checkbox"
+                data-flag="${esc(flag.name)}"
+                data-env="${esc(envName)}"
+                ${enabled ? 'checked' : ''}
+                onchange="toggleFlag('${esc(flag.name)}', '${esc(envName)}', this.checked)" />
+              <span class="slider"></span>
+            </label>
+          </td>`;
+        }
+
+        html += `<td class="flag-actions">
+            <button onclick="archiveFlag('${esc(flag.name)}')" title="Archive flag">Archive</button>
+          </td>
+        </tr>`;
+      }
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function updateStats() {
+      document.getElementById('stat-total').textContent = flags.length;
+
+      for (const [envName, statId] of [['development', 'stat-dev'], ['UAT', 'stat-uat'], ['production', 'stat-prod']]) {
+        const count = flags.filter(f => {
+          const env = f.environments.find(e => e.name === envName);
+          return env && env.enabled;
+        }).length;
+        document.getElementById(statId).textContent = count;
+      }
+    }
+
+    // --- Modals ---
+
+    function openCreateModal() {
+      document.getElementById('create-form').reset();
+      document.getElementById('create-modal').classList.add('active');
+    }
+
+    function closeCreateModal() {
+      document.getElementById('create-modal').classList.remove('active');
+    }
+
+    function showConfirm(title, message, callback) {
+      document.getElementById('confirm-title').textContent = title;
+      document.getElementById('confirm-message').innerHTML = message;
+      confirmCallback = callback;
+      document.getElementById('confirm-overlay').classList.add('active');
+    }
+
+    function cancelConfirm() {
+      document.getElementById('confirm-overlay').classList.remove('active');
+      confirmCallback = null;
+      // Re-load to revert any optimistic checkbox changes
+      loadFlags();
+    }
+
+    function executeConfirm() {
+      document.getElementById('confirm-overlay').classList.remove('active');
+      if (confirmCallback) {
+        confirmCallback();
+        confirmCallback = null;
+      }
+    }
+
+    // --- Utils ---
+
+    function esc(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function toast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }
+
+    // Close modals on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeCreateModal();
+        cancelConfirm();
+      }
+    });
+
+    // Close modals on overlay click
+    document.getElementById('create-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeCreateModal();
+    });
+    document.getElementById('confirm-overlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) cancelConfirm();
+    });
+
+    // --- Init ---
+    loadFlags();
+  </script>
+</body>
+</html>

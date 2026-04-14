@@ -6,9 +6,11 @@ in this service's env; engineers call the HTTP endpoints (or go through
 the MCP server for Claude-driven workflows).
 
 Endpoints:
+  GET  /flags                  — list all flags in the project
   POST /flags                  — create a flag for a Jira ticket
   GET  /flags/{name}           — full flag details, including per-env state
   POST /flags/{name}/toggle    — enable/disable in one environment
+  DELETE /flags/{name}         — archive (soft-delete) a flag
 
 Flag naming convention: `CT-<ticket>-<ShortName>`, enforced server-side.
 Flags are created off in every environment. Engineers code the else
@@ -20,9 +22,17 @@ import re
 
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="Unleash Flag API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 UNLEASH_BASE_URL = os.environ["UNLEASH_BASE_URL"].rstrip("/")
 UNLEASH_PROJECT = os.environ.get("UNLEASH_PROJECT", "core-products")
@@ -148,6 +158,37 @@ async def create_flag(req: CreateFlagRequest):
             )
 
         return await _fetch_flag(client, name)
+
+
+@app.get("/flags", response_model=list[FeatureFlag])
+async def list_flags():
+    """List all feature flags in the project with per-environment state."""
+    headers = {"Authorization": UNLEASH_ADMIN_TOKEN}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{UNLEASH_BASE_URL}/api/admin/projects/{UNLEASH_PROJECT}/features",
+            headers=headers,
+        )
+        if not 200 <= resp.status_code < 300:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Unleash list error (HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+        data = resp.json()
+        return [
+            FeatureFlag(
+                name=f["name"],
+                project=f.get("project", UNLEASH_PROJECT),
+                type=f.get("type", "release"),
+                description=f.get("description", "") or "",
+                created_at=f.get("createdAt"),
+                environments=[
+                    EnvironmentState(name=e["name"], enabled=e.get("enabled", False))
+                    for e in f.get("environments", [])
+                ],
+            )
+            for f in data.get("features", [])
+        ]
 
 
 @app.get("/flags/{name}", response_model=FeatureFlag)

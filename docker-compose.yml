@@ -49,6 +49,15 @@ services:
       - "9511:3000"
     restart: unless-stopped
 
+  dashboard:
+    build: ./dashboard
+    container_name: crown-mcp-dashboard
+    ports:
+      - "9512:3000"
+    depends_on:
+      - unleash-api
+    restart: unless-stopped
+
   mcp-server:
     build: ./mcp-server
     container_name: crown-mcp-server

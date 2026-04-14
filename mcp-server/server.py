@@ -11,6 +11,8 @@ Current tools:
   - list_reviews: query past reviews — find PRs with outstanding
     high/medium/low issues, filter by engineer or repo (wraps
     review-api GET /reviews).
+  - list_feature_flags: list all flags in the project with per-env
+    state (wraps unleash-api GET /flags).
   - create_feature_flag: create an Unleash feature flag for a ticket
     (wraps unleash-api POST /flags).
   - get_feature_flag: show a flag's per-environment state (wraps
@@ -152,6 +154,24 @@ async def list_reviews(
         resp = await client.get(f"{REVIEW_API_URL}/reviews", params=params)
         resp.raise_for_status()
         return resp.json()
+
+
+@mcp.tool()
+async def list_feature_flags() -> dict:
+    """List all feature flags in the project with per-environment state.
+
+    Use this to answer questions like "what flags do we have?" or "show me
+    all feature flags" or to get a full overview of flag states across
+    environments.
+
+    Returns:
+        List of flags, each with the same shape as get_feature_flag —
+        includes name, type, description, and per-environment enabled state.
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(f"{UNLEASH_API_URL}/flags")
+        resp.raise_for_status()
+        return {"flags": resp.json()}
 
 
 @mcp.tool()
