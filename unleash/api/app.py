@@ -310,10 +310,10 @@ async def get_flag_apps(flags: str = ""):
     jql = f"key in ({keys_csv})"
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.get(
-            f"{JIRA_BASE_URL}/rest/api/3/search",
-            params={"jql": jql, "maxResults": 100, "fields": "parent,summary"},
+        resp = await client.post(
+            f"{JIRA_BASE_URL}/rest/api/3/search/jql",
             headers=jira_headers,
+            json={"jql": jql, "maxResults": 100, "fields": ["parent", "summary"]},
         )
         if not 200 <= resp.status_code < 300:
             raise HTTPException(
