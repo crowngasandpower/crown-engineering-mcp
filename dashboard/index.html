@@ -191,21 +191,14 @@
       white-space: nowrap;
     }
 
-    .col-flag { width: 25%; }
-    .col-type { width: 10%; }
-    .col-desc { width: auto; }
-    .col-env { width: 70px; }
-    .col-actions { width: 80px; }
-
     .env-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      text-align: center;
     }
 
     /* Toggle switch */
     .toggle {
       position: relative;
+      display: inline-block;
       width: 42px;
       height: 24px;
       cursor: pointer;
@@ -706,15 +699,24 @@
       }
 
       let html = `<table>
+        <colgroup>
+          <col style="width:25%">
+          <col style="width:10%">
+          <col>
+          <col style="width:70px">
+          <col style="width:70px">
+          <col style="width:70px">
+          <col style="width:80px">
+        </colgroup>
         <thead>
           <tr>
-            <th class="col-flag">Flag</th>
-            <th class="col-type">Type</th>
-            <th class="col-desc">Description</th>
-            <th class="env-header col-env">Dev</th>
-            <th class="env-header col-env">UAT</th>
-            <th class="env-header col-env">Prod <span class="prod-warning">live</span></th>
-            <th class="col-actions"></th>
+            <th>Flag</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th class="env-header">Dev</th>
+            <th class="env-header">UAT</th>
+            <th class="env-header">Prod <span class="prod-warning">live</span></th>
+            <th></th>
           </tr>
         </thead>
         <tbody>`;
@@ -805,7 +807,7 @@
       if (!str) return '';
       const div = document.createElement('div');
       div.textContent = str;
-      return div.innerHTML;
+      return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function toast(message, type = 'success') {
