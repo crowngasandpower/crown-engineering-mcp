@@ -416,6 +416,6 @@ async def claim_bug(assignee_email: str) -> dict:
 
 
 if __name__ == "__main__":
-    # SSE transport — broadly supported by Claude Code and other MCP clients.
-    # mcp.sse_app() returns a Starlette app; uvicorn serves it on the chosen port.
-    uvicorn.run(mcp.sse_app(), host="0.0.0.0", port=PORT)
+    # Streamable HTTP transport — stateless request/response, no SSE session
+    # management. More reliable than SSE for long-running connections.
+    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
