@@ -58,6 +58,30 @@ Everything runs on `poc-containers` (192.168.173.140). Monitoring (Prometheus, G
 | Unleash API | 9511 | `crown-mcp-unleash-api` |
 | Bugs API | 9513 | `crown-mcp-bugs-api` |
 
+## What can I ask Claude to do?
+
+Once the MCP server is registered, you can use natural language. Here are example prompts:
+
+> **"give me a bug"** — Claims the next bug from the CT board, or returns your existing in-progress one.
+
+> **"skip this bug, it needs input from the customer"** — Moves your current bug to Blocked with a comment and finds the next one.
+
+> **"review my changes before I push"** — Runs your diff through AI review and reports issues by severity with file/line references.
+
+> **"show me my outstanding high-severity issues"** — Lists your PRs that still have unresolved review issues, sorted worst-first.
+
+> **"I need the Unleash client token for production"** — Returns the token and URL to put in your app's `.env`.
+
+> **"what feature flags do we have?"** — Lists every flag with its on/off state per environment.
+
+> **"create a feature flag for CT-2150"** — Creates a new flag, OFF everywhere. Claude asks for a short name.
+
+> **"is CT-2037-Deadlock-Retry enabled in production?"** — Shows the flag's state across all environments.
+
+> **"enable CT-2037-Deadlock-Retry in UAT"** — Flips the flag and confirms the new state.
+
+> **"archive the CT-2037-Deadlock-Retry flag, rollout is done"** — Soft-deletes the flag once the code cleanup is complete.
+
 ## Running locally
 
 ```bash
