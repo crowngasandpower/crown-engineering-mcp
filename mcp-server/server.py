@@ -11,6 +11,11 @@ Current tools:
   - list_reviews: query past reviews — find PRs with outstanding
     high/medium/low issues, filter by engineer or repo (wraps
     review-api GET /reviews).
+  - get_api_tokens: retrieve Unleash API tokens (client for backends,
+    frontend for SPAs) scoped by environment (wraps unleash-api
+    GET /tokens).
+  - list_feature_flags: list all flags in the project with per-env
+    state (wraps unleash-api GET /flags).
   - create_feature_flag: create an Unleash feature flag for a ticket
     (wraps unleash-api POST /flags).
   - get_feature_flag: show a flag's per-environment state (wraps
@@ -19,6 +24,8 @@ Current tools:
     (wraps unleash-api POST /flags/{name}/toggle).
   - archive_feature_flag: archive (soft-delete) a flag whose rollout
     is complete (wraps unleash-api DELETE /flags/{name}).
+  - claim_bug: find and claim the next actionable bug from the CT
+    Jira board (wraps bugs-api POST /claim at port 9513).
 
 Engineers register this server in ~/.claude/settings.json:
   {
@@ -35,9 +42,12 @@ import os
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
 REVIEW_API_URL = os.environ.get("REVIEW_API_URL", "http://review-api:3000")
 UNLEASH_API_URL = os.environ.get("UNLEASH_API_URL", "http://unleash-api:3000")
+BUGS_API_URL = os.environ.get("BUGS_API_URL", "http://bugs-api:3000")
 PORT = int(os.environ.get("PORT", "3000"))
 REVIEW_TIMEOUT_SECONDS = float(os.environ.get("REVIEW_TIMEOUT_SECONDS", "180"))
 
@@ -152,6 +162,76 @@ async def list_reviews(
         resp = await client.get(f"{REVIEW_API_URL}/reviews", params=params)
         resp.raise_for_status()
         return resp.json()
+
+
+@mcp.tool()
+async def get_api_tokens(type: str | None = None) -> dict:
+    """Retrieve Unleash API tokens and connection URLs for app configuration.
+
+    Crown uses two types of environment-scoped token — choose the right
+    one for the context:
+
+    **client** tokens (server-side / backend):
+      - Used by Laravel apps via `j-webb/laravel-unleash` or `crown/unleash`
+      - Connect to the **client_api_url** returned in the response
+      - Safe on servers, NEVER safe in browser code
+      - Each token is scoped to one environment (development, UAT, production)
+
+    **frontend** tokens (browser / Vue SPA):
+      - Used by JavaScript browser SDKs (`@unleash/proxy-client-react`,
+        `unleash-proxy-client`)
+      - Connect to the **frontend_api_url** returned in the response
+      - Designed to be safe in browser code — only returns evaluated
+        true/false results, never strategies or internal details
+      - Each token is scoped to one environment
+
+    When configuring an app, pick the token that matches:
+      1. The app's runtime: backend → client, frontend → frontend
+      2. The target environment: development, UAT, or production
+
+    Use the returned URLs when configuring the Unleash SDK. For example,
+    in a Laravel app's .env: UNLEASH_URL=<client_api_url> and
+    UNLEASH_API_KEY=<token secret>. Never hardcode tokens in committed
+    files — put them in .env.
+
+    Admin tokens are never returned — they stay inside the wrapper service.
+
+    Args:
+        type: Optional filter — "client" or "frontend". Omit to get both.
+
+    Returns:
+        {
+            "unleash_url": "https://...",
+            "client_api_url": "https://.../api/client",
+            "frontend_api_url": "https://.../api/frontend",
+            "tokens": [{"name", "type", "environment", "project", "secret"}]
+        }
+    """
+    params = {}
+    if type:
+        params["type"] = type
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(f"{UNLEASH_API_URL}/tokens", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def list_feature_flags() -> dict:
+    """List all feature flags in the project with per-environment state.
+
+    Use this to answer questions like "what flags do we have?" or "show me
+    all feature flags" or to get a full overview of flag states across
+    environments.
+
+    Returns:
+        List of flags, each with the same shape as get_feature_flag —
+        includes name, type, description, and per-environment enabled state.
+    """
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(f"{UNLEASH_API_URL}/flags")
+        resp.raise_for_status()
+        return {"flags": resp.json()}
 
 
 @mcp.tool()
@@ -288,7 +368,90 @@ async def archive_feature_flag(name: str) -> dict:
     return {"name": name, "archived": True}
 
 
+@mcp.tool()
+async def claim_bug(assignee_email: str) -> dict:
+    """Find and claim the next actionable bug from the CT Jira board.
+
+    Use this when an engineer says "give me a bug", "let's tackle a bug",
+    or otherwise asks for the next bug to work on. The tool searches the
+    CT board for open bugs in the To Do column, sorted by priority
+    (highest first), and:
+
+      1. If the bug has a sufficiently detailed description → assigns it
+         to the engineer, moves it to In Progress, and returns the ticket
+         key, title, priority, and description so work can begin.
+
+      2. If the bug lacks enough information → adds a comment explaining
+         what's missing and moves it to Blocked, then tries the next bug.
+
+    The response includes `blocked_keys` — any tickets that were skipped
+    and blocked along the way.
+
+    Args:
+        assignee_email: The engineer's email address (used to look up
+                        their Jira account and assign the ticket). This
+                        is the email they use to log in to Jira — e.g.
+                        "first.last@crowngasandpower.co.uk".
+
+    Returns:
+        {
+          "key": "CT-1234",
+          "url": "https://...atlassian.net/browse/CT-1234",
+          "title": "Bug summary from Jira",
+          "priority": "High",
+          "description_text": "Plain-text description...",
+          "viable": true,
+          "message": "Bug CT-1234 assigned to you and moved to In Progress.",
+          "blocked_keys": ["CT-1230", "CT-1231"]
+        }
+
+        If no viable bug is found, returns an error with the list of
+        tickets that were blocked.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{BUGS_API_URL}/claim",
+            json={"assignee_email": assignee_email},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def skip_bug(key: str, reason: str) -> dict:
+    """Mark a bug as investigated but not actionable, so claim_bug skips it.
+
+    Use this when a bug has been looked at but doesn't need a code fix —
+    e.g. infrastructure issues, data queries, documentation tasks, or
+    tickets that were miscategorised as bugs. Adds a 'claude-skipped'
+    label and a comment with the reason, then unassigns the ticket.
+
+    Args:
+        key: The Jira issue key (e.g. "CT-689").
+        reason: Why this bug is being skipped (e.g. "infra issue — DNS
+                resolves fine now, no code fix needed").
+
+    Returns:
+        {"key": "CT-689", "message": "CT-689 marked as skipped..."}
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{BUGS_API_URL}/skip",
+            json={"key": key, "reason": reason},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 if __name__ == "__main__":
-    # SSE transport — broadly supported by Claude Code and other MCP clients.
-    # mcp.sse_app() returns a Starlette app; uvicorn serves it on the chosen port.
-    uvicorn.run(mcp.sse_app(), host="0.0.0.0", port=PORT)
+    # Serve both transports so existing /sse clients keep working while
+    # new clients can use the more reliable /mcp streamable HTTP endpoint.
+    # The SSE app must be mounted as a complete sub-application (not merged
+    # routes) so its internal session manager stays intact.
+    app = Starlette(
+        routes=[
+            Mount("/", app=mcp.sse_app()),
+            Mount("/mcp", app=mcp.streamable_http_app()),
+        ],
+    )
+    uvicorn.run(app, host="0.0.0.0", port=PORT)

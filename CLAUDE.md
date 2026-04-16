@@ -27,7 +27,7 @@ Don't pre-create empty directories for hypothetical tools. The README documents 
 - **Secrets** never go in committed files. Each tool reads its credentials from environment variables; production values come from the `.env` file on `poc-containers` (uncommitted).
 - **Source of truth is the HTTP API.** The MCP server is a thin adapter — never put business logic in MCP tool handlers that's not also reachable via HTTP.
 - **Naming convention for containers:** `crown-mcp-<tool>-<role>` (e.g. `crown-mcp-review-api`).
-- **Port allocation:** postgres 9504, postgrest 9505, review-api 9506, mcp-server 9510, unleash-api 9511. 9508/9509 are owned by the separate `monitoring` repo (its postgres + postgrest). New tools claim sequentially upward from 9512.
+- **Port allocation:** postgres 9504, postgrest 9505, review-api 9506, mcp-server 9510, unleash-api 9511, dashboard 9512. 9508/9509 are owned by the separate `monitoring` repo (its postgres + postgrest). New tools claim sequentially upward from 9513.
 
 ## Review system prompt sync
 
