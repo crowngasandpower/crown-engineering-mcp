@@ -415,6 +415,32 @@ async def claim_bug(assignee_email: str) -> dict:
         return resp.json()
 
 
+@mcp.tool()
+async def skip_bug(key: str, reason: str) -> dict:
+    """Mark a bug as investigated but not actionable, so claim_bug skips it.
+
+    Use this when a bug has been looked at but doesn't need a code fix —
+    e.g. infrastructure issues, data queries, documentation tasks, or
+    tickets that were miscategorised as bugs. Adds a 'claude-skipped'
+    label and a comment with the reason, then unassigns the ticket.
+
+    Args:
+        key: The Jira issue key (e.g. "CT-689").
+        reason: Why this bug is being skipped (e.g. "infra issue — DNS
+                resolves fine now, no code fix needed").
+
+    Returns:
+        {"key": "CT-689", "message": "CT-689 marked as skipped..."}
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{BUGS_API_URL}/skip",
+            json={"key": key, "reason": reason},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
 if __name__ == "__main__":
     # Streamable HTTP transport — stateless request/response, no SSE session
     # management. More reliable than SSE for long-running connections.

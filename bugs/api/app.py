@@ -9,6 +9,7 @@ explaining that more detail is needed.
 Endpoints:
   GET  /health  — liveness check
   POST /claim   — find and claim the next actionable bug
+  POST /skip    — mark a bug as investigated/skipped so /claim won't return it
 """
 
 import base64
@@ -44,6 +45,11 @@ CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 # looking for the first viable one, blocking the rest as we go.
 MAX_CANDIDATES = int(os.environ.get("MAX_BUG_CANDIDATES", "10"))
 
+# Label applied to bugs that have been investigated but don't need a
+# code fix (infra issues, data queries, documentation tasks, etc.).
+# The /claim endpoint excludes tickets with this label.
+SKIP_LABEL = "claude-skipped"
+
 
 # ---------------------------------------------------------------------------
 # Request / response models
@@ -69,6 +75,14 @@ class ClaimedBug(BaseModel):
     blocked_keys: list[str] = Field(
         default_factory=list,
         description="Ticket keys that were skipped and moved to Blocked",
+    )
+
+
+class SkipRequest(BaseModel):
+    key: str = Field(..., description="Jira issue key to skip (e.g. CT-689)")
+    reason: str = Field(
+        ...,
+        description="Why this bug is being skipped (e.g. 'infra issue, not a code fix')",
     )
 
 
@@ -318,10 +332,11 @@ async def claim_bug(req: ClaimRequest):
         # Resolve the engineer's Jira account ID
         account_id = await _find_account_id(client, req.assignee_email)
 
-        # Find To-Do bugs, highest priority first
+        # Find To-Do bugs, highest priority first (excluding skipped)
         jql = (
             f"project = {JIRA_PROJECT} AND issuetype = Bug "
             f'AND statusCategory = "To Do" '
+            f'AND labels NOT IN ("{SKIP_LABEL}") '
             f"ORDER BY priority ASC, created ASC"
         )
         resp = await client.post(
@@ -406,3 +421,52 @@ async def claim_bug(req: ClaimRequest):
             f"information to proceed. Blocked: "
             f"{', '.join(blocked_keys)}.",
         )
+
+
+@app.post("/skip")
+async def skip_bug(req: SkipRequest):
+    """Mark a bug as investigated/skipped so /claim won't return it.
+
+    Adds the 'claude-skipped' label and a comment explaining why, then
+    unassigns the ticket and moves it back to the To Do column. Future
+    /claim calls exclude tickets with this label.
+    """
+    if not JIRA_EMAIL or not JIRA_API_TOKEN:
+        raise HTTPException(503, "Jira credentials not configured")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Add the skip label
+        resp = await client.put(
+            f"{JIRA_BASE_URL}/rest/api/3/issue/{req.key}",
+            headers=_jira_headers(),
+            json={
+                "update": {
+                    "labels": [{"add": SKIP_LABEL}],
+                },
+            },
+        )
+        if not 200 <= resp.status_code < 300:
+            raise HTTPException(
+                502,
+                f"Failed to add label to {req.key} "
+                f"(HTTP {resp.status_code}): {resp.text[:500]}",
+            )
+
+        # Add a comment with the reason
+        await _add_comment(
+            client,
+            req.key,
+            f"Skipped by Claude \u2014 {req.reason}",
+        )
+
+        # Unassign
+        await client.put(
+            f"{JIRA_BASE_URL}/rest/api/3/issue/{req.key}/assignee",
+            headers=_jira_headers(),
+            json={"accountId": None},
+        )
+
+    return {
+        "key": req.key,
+        "message": f"{req.key} marked as skipped. It won't appear in future /claim results.",
+    }
