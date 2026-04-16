@@ -42,6 +42,8 @@ import os
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
 REVIEW_API_URL = os.environ.get("REVIEW_API_URL", "http://review-api:3000")
 UNLEASH_API_URL = os.environ.get("UNLEASH_API_URL", "http://unleash-api:3000")
@@ -442,6 +444,14 @@ async def skip_bug(key: str, reason: str) -> dict:
 
 
 if __name__ == "__main__":
-    # Streamable HTTP transport — stateless request/response, no SSE session
-    # management. More reliable than SSE for long-running connections.
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
+    # Serve both transports so existing /sse clients keep working while
+    # new clients can use the more reliable /mcp streamable HTTP endpoint.
+    # The SSE app must be mounted as a complete sub-application (not merged
+    # routes) so its internal session manager stays intact.
+    app = Starlette(
+        routes=[
+            Mount("/", app=mcp.sse_app()),
+            Mount("/mcp", app=mcp.streamable_http_app()),
+        ],
+    )
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
