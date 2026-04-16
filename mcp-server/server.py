@@ -24,6 +24,8 @@ Current tools:
     (wraps unleash-api POST /flags/{name}/toggle).
   - archive_feature_flag: archive (soft-delete) a flag whose rollout
     is complete (wraps unleash-api DELETE /flags/{name}).
+  - claim_bug: find and claim the next actionable bug from the CT
+    Jira board (wraps bugs-api POST /claim at port 9513).
 
 Engineers register this server in ~/.claude/settings.json:
   {
@@ -43,6 +45,7 @@ from mcp.server.fastmcp import FastMCP
 
 REVIEW_API_URL = os.environ.get("REVIEW_API_URL", "http://review-api:3000")
 UNLEASH_API_URL = os.environ.get("UNLEASH_API_URL", "http://unleash-api:3000")
+BUGS_API_URL = os.environ.get("BUGS_API_URL", "http://bugs-api:3000")
 PORT = int(os.environ.get("PORT", "3000"))
 REVIEW_TIMEOUT_SECONDS = float(os.environ.get("REVIEW_TIMEOUT_SECONDS", "180"))
 
@@ -361,6 +364,55 @@ async def archive_feature_flag(name: str) -> dict:
         resp = await client.delete(f"{UNLEASH_API_URL}/flags/{name}")
         resp.raise_for_status()
     return {"name": name, "archived": True}
+
+
+@mcp.tool()
+async def claim_bug(assignee_email: str) -> dict:
+    """Find and claim the next actionable bug from the CT Jira board.
+
+    Use this when an engineer says "give me a bug", "let's tackle a bug",
+    or otherwise asks for the next bug to work on. The tool searches the
+    CT board for open bugs in the To Do column, sorted by priority
+    (highest first), and:
+
+      1. If the bug has a sufficiently detailed description → assigns it
+         to the engineer, moves it to In Progress, and returns the ticket
+         key, title, priority, and description so work can begin.
+
+      2. If the bug lacks enough information → adds a comment explaining
+         what's missing and moves it to Blocked, then tries the next bug.
+
+    The response includes `blocked_keys` — any tickets that were skipped
+    and blocked along the way.
+
+    Args:
+        assignee_email: The engineer's email address (used to look up
+                        their Jira account and assign the ticket). This
+                        is the email they use to log in to Jira — e.g.
+                        "first.last@crowngasandpower.co.uk".
+
+    Returns:
+        {
+          "key": "CT-1234",
+          "url": "https://...atlassian.net/browse/CT-1234",
+          "title": "Bug summary from Jira",
+          "priority": "High",
+          "description_text": "Plain-text description...",
+          "viable": true,
+          "message": "Bug CT-1234 assigned to you and moved to In Progress.",
+          "blocked_keys": ["CT-1230", "CT-1231"]
+        }
+
+        If no viable bug is found, returns an error with the list of
+        tickets that were blocked.
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{BUGS_API_URL}/claim",
+            json={"assignee_email": assignee_email},
+        )
+        resp.raise_for_status()
+        return resp.json()
 
 
 if __name__ == "__main__":

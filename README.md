@@ -19,7 +19,8 @@ The HTTP API is the source of truth; the MCP server is a thin adapter on top.
 | --- | --- | --- |
 | [`review/`](review/) | AI Code Review — FastAPI for engineer pre-push reviews + Jenkins polling pipeline that posts review comments on PRs | Live (port 9506) |
 | [`unleash/`](unleash/) | Feature flag management — wraps the Unleash admin API so engineers (and Claude) can create, inspect, and toggle flags without holding admin credentials | Live (port 9511) |
-| [`mcp-server/`](mcp-server/) | Single MCP server exposing every tool's HTTP API to Claude Code | Live (port 9510) — exposes `review_diff`, `list_reviews`, `create_feature_flag`, `get_feature_flag`, `toggle_feature_flag`, `archive_feature_flag` |
+| [`bugs/`](bugs/) | Bug triage — finds the highest-priority open bug on the CT board, checks viability, assigns it to the engineer or blocks it if under-specified | Live (port 9513) |
+| [`mcp-server/`](mcp-server/) | Single MCP server exposing every tool's HTTP API to Claude Code | Live (port 9510) — exposes `review_diff`, `list_reviews`, `create_feature_flag`, `get_feature_flag`, `toggle_feature_flag`, `archive_feature_flag`, `claim_bug` |
 
 ## Repo layout
 
@@ -55,6 +56,7 @@ Everything runs on `poc-containers` (192.168.173.140). Monitoring (Prometheus, G
 | Review API | 9506 | `crown-mcp-review-api` |
 | MCP Server | 9510 | `crown-mcp-server` |
 | Unleash API | 9511 | `crown-mcp-unleash-api` |
+| Bugs API | 9513 | `crown-mcp-bugs-api` |
 
 ## Running locally
 
