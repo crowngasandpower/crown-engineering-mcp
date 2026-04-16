@@ -12,6 +12,7 @@ Endpoints:
 """
 
 import base64
+import json
 import os
 
 import httpx
@@ -36,13 +37,12 @@ JIRA_EMAIL = os.environ.get("JIRA_EMAIL", "")
 JIRA_API_TOKEN = os.environ.get("JIRA_API_TOKEN", "")
 JIRA_PROJECT = os.environ.get("JIRA_PROJECT", "CT")
 
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+
 # How many To-Do bugs to fetch in one search. We iterate through them
 # looking for the first viable one, blocking the rest as we go.
 MAX_CANDIDATES = int(os.environ.get("MAX_BUG_CANDIDATES", "10"))
-
-# Minimum plain-text length in the description for a bug to be
-# considered "viable" (i.e. has enough information to work on).
-MIN_DESCRIPTION_LENGTH = int(os.environ.get("MIN_DESCRIPTION_LENGTH", "50"))
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +62,9 @@ class ClaimedBug(BaseModel):
     priority: str
     description_text: str
     viable: bool
+    viability_reason: str = Field(
+        "", description="Claude's explanation of why the bug is/isn't viable"
+    )
     message: str
     blocked_keys: list[str] = Field(
         default_factory=list,
@@ -96,10 +99,83 @@ def _extract_text_from_adf(node: dict | list | None) -> str:
     return ""
 
 
-def _is_viable(description_adf: dict | None) -> bool:
-    """A bug is viable if its description has meaningful detail."""
-    text = _extract_text_from_adf(description_adf).strip()
-    return len(text) >= MIN_DESCRIPTION_LENGTH
+VIABILITY_PROMPT = """\
+You are a bug triage assistant for Crown Gas & Power's software estate.
+You will be given a Jira bug ticket's title and description. Decide
+whether a developer could realistically start working on this bug
+with the information provided.
+
+A bug is **viable** if it has ALL of:
+  1. A clear description of the problem (what is going wrong).
+  2. Enough context to locate the issue — e.g. which app, page, or
+     process is affected.
+  3. Some indication of expected vs actual behaviour, OR steps to
+     reproduce, OR an error message / screenshot reference.
+
+A bug is **not viable** if:
+  - The description is empty or trivially short (e.g. just the title
+    repeated).
+  - It is too vague to know where to start (e.g. "it's broken").
+  - Critical context is missing (no app name, no page, no steps).
+
+Respond with ONLY a JSON object — no markdown, no extra text:
+{"viable": true, "reason": "one sentence explaining your decision"}
+"""
+
+
+async def _assess_viability(
+    client: httpx.AsyncClient, title: str, description_text: str
+) -> tuple[bool, str]:
+    """Ask Claude whether a bug has enough information to work on.
+
+    Returns (viable, reason). Falls back to a simple length check if
+    the Anthropic API is unavailable.
+    """
+    if not ANTHROPIC_API_KEY:
+        # Graceful fallback — no key configured
+        viable = len(description_text) >= 50
+        reason = (
+            "LLM assessment unavailable (no API key) — "
+            "fell back to description length check."
+        )
+        return viable, reason
+
+    user_message = f"**Title:** {title}\n\n**Description:**\n{description_text or '(empty)'}"
+
+    try:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": CLAUDE_MODEL,
+                "max_tokens": 150,
+                "messages": [
+                    {"role": "user", "content": user_message},
+                ],
+                "system": VIABILITY_PROMPT,
+            },
+            timeout=15.0,
+        )
+        if not 200 <= resp.status_code < 300:
+            # API error — fall back to length check
+            viable = len(description_text) >= 50
+            return viable, f"LLM assessment failed (HTTP {resp.status_code}) — fell back to length check."
+
+        content = resp.json()["content"][0]["text"].strip()
+        result = json.loads(content)
+        return bool(result["viable"]), result.get("reason", "")
+
+    except (json.JSONDecodeError, KeyError, IndexError):
+        # Claude responded but not in expected JSON format
+        viable = len(description_text) >= 50
+        return viable, "LLM response could not be parsed — fell back to length check."
+    except httpx.HTTPError:
+        viable = len(description_text) >= 50
+        return viable, "LLM request failed — fell back to length check."
 
 
 async def _find_account_id(
@@ -287,7 +363,11 @@ async def claim_bug(req: ClaimRequest):
             description_adf = fields.get("description")
             description_text = _extract_text_from_adf(description_adf).strip()
 
-            if _is_viable(description_adf):
+            viable, reason = await _assess_viability(
+                client, summary, description_text
+            )
+
+            if viable:
                 # Found a good one — assign and move to In Progress
                 await _assign_issue(client, key, account_id)
                 await _transition_to_in_progress(client, key)
@@ -299,6 +379,7 @@ async def claim_bug(req: ClaimRequest):
                     priority=priority_name,
                     description_text=description_text,
                     viable=True,
+                    viability_reason=reason,
                     message=(
                         f"Bug {key} assigned to you and moved to "
                         f"In Progress."
@@ -310,10 +391,10 @@ async def claim_bug(req: ClaimRequest):
                 await _add_comment(
                     client,
                     key,
-                    "Checked by Claude \u2014 not enough information to "
-                    "proceed. Please add reproduction steps, expected "
-                    "behaviour, and actual behaviour before moving this "
-                    "back to To Do.",
+                    f"Checked by Claude \u2014 not enough information to "
+                    f"proceed. {reason} Please add reproduction steps, "
+                    f"expected behaviour, and actual behaviour before "
+                    f"moving this back to To Do.",
                 )
                 await _transition_to_blocked(client, key)
                 blocked_keys.append(key)
