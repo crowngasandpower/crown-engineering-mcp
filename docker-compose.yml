@@ -62,7 +62,7 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN:-DC=crowngp,DC=local}
       ENGINEER_GROUP_DN: ${ENGINEER_GROUP_DN:-CN=Dev-Env-Access,OU=Security Groups,DC=crowngp,DC=local}
       UNLEASH_API_URL: http://unleash-api:3000
-      JENKINS_BASE_URL: http://host.docker.internal:8090
+      JENKINS_BASE_URL: http://host.docker.internal:9519
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_ORG: crowngasandpower
       INITIAL_ADMIN: paul.berry-briggs
