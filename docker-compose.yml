@@ -72,7 +72,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "9514:3000"
+      - "9518:3000"
     depends_on:
       - unleash-api
     restart: unless-stopped
