@@ -34,6 +34,7 @@
   <div class="user-info">
     <span id="userDisplay"></span>
     <span class="role-badge" id="roleBadge"></span>
+    <a href="/admin.html" id="adminCog" style="display:none;color:var(--text-muted);font-size:18px;text-decoration:none;cursor:pointer;" title="Admin">&#9881;</a>
     <button onclick="logout()">Logout</button>
   </div>
 </header>
@@ -55,10 +56,10 @@
       <h2>Grafana</h2>
       <p>Dashboards for application health, infrastructure metrics, and server monitoring.</p>
     </a>
-    <a href="/admin.html" class="tool-card" id="adminCard" style="display:none">
-      <div class="icon">&#9881;&#65039;</div>
-      <h2>Admin</h2>
-      <p>Manage user permissions and view the audit log.</p>
+    <a href="http://poc-containers:9519" class="tool-card">
+      <div class="icon">&#128295;</div>
+      <h2>Jenkins</h2>
+      <p>CI/CD pipelines, automated code reviews, and build management.</p>
     </a>
   </div>
 </div>
@@ -74,9 +75,9 @@
       document.getElementById('userDisplay').textContent = currentUser.display_name;
       document.getElementById('roleBadge').textContent = currentUser.role;
 
-      // Show admin card only for admins
+      // Show admin cog only for admins
       if (currentUser.permissions.can_admin) {
-        document.getElementById('adminCard').style.display = 'block';
+        document.getElementById('adminCog').style.display = 'inline';
       }
 
       // Grey out deploy card if no deploy permission
