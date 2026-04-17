@@ -78,6 +78,8 @@ services:
   deployments:
     build: ./deployments
     container_name: crown-mcp-deployments
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
