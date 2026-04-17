@@ -82,6 +82,16 @@ services:
     container_name: crown-mcp-dashboard
     ports:
       - "9512:3000"
+    networks:
+      - default
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tools.rule=Host(`tools.poc.crowngasandpower.co.uk`)"
+      - "traefik.http.routers.tools.entrypoints=websecure"
+      - "traefik.http.routers.tools.tls=true"
+      - "traefik.http.routers.tools.tls.certresolver=letsencrypt"
+      - "traefik.http.services.tools.loadbalancer.server.port=3000"
     depends_on:
       - dashboard-api
     restart: unless-stopped
@@ -114,3 +124,8 @@ services:
       - unleash-api
       - bugs-api
     restart: unless-stopped
+
+networks:
+  traefik_public:
+    external: true
+    name: jenkins-poc_traefik_public

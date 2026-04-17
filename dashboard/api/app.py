@@ -64,7 +64,12 @@ app = FastAPI(title="Crown Dashboard API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://poc-containers:9512"],
+    allow_origins=[
+        "http://poc-containers:9512",
+        "https://tools.poc.crowngasandpower.co.uk",
+        "https://grafana.poc.crowngasandpower.co.uk",
+        "https://jenkins.poc.crowngasandpower.co.uk",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -126,7 +131,8 @@ async def login(body: LoginRequest, request: Request, response: Response, db: DB
         samesite="lax",
         path="/",
         max_age=8 * 3600,
-        # secure=True when HTTPS is enabled; currently HTTP-only internal network
+        domain=".poc.crowngasandpower.co.uk",
+        secure=True,
     )
 
     return {
@@ -149,7 +155,7 @@ async def logout(request: Request, response: Response, db: DBSession = Depends(g
             _audit(db, user.username, "logout", user.username, "", _client_ip(request))
         delete_session(db, token)
 
-    response.delete_cookie("crown_session", path="/")
+    response.delete_cookie("crown_session", path="/", domain=".poc.crowngasandpower.co.uk")
     return {"message": "Logged out"}
 
 
