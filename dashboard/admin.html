@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Crown Engineering Tools</title>
+  <style>
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --surface-hover: #222632;
+      --border: #2a2e3b; --text: #e1e4eb; --text-muted: #8b8fa3;
+      --accent: #6366f1; --accent-hover: #818cf8; --green: #22c55e;
+      --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 26px; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+    .user-info { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-muted); }
+    .user-info button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 40px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+    .card h2 { font-size: 18px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    tr:hover { background: var(--surface-hover); }
+    .badge { padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .badge-admin { background: rgba(99,102,241,0.15); color: var(--accent); }
+    .badge-engineer { background: rgba(34,197,94,0.12); color: var(--green); }
+    .badge-flag_admin { background: rgba(234,179,8,0.12); color: var(--yellow); }
+    .badge-deploy_admin { background: rgba(59,130,246,0.12); color: var(--blue); }
+    .badge-viewer { background: rgba(139,143,163,0.12); color: var(--text-muted); }
+    .toggle-cell { text-align: center; }
+    .toggle-cell input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 24px; }
+    .tab { padding: 8px 20px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; font-size: 14px; }
+    .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .filter-row { display: flex; gap: 12px; margin-bottom: 16px; }
+    .filter-row select, .filter-row input { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+    .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+    .pagination button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; }
+    .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 14px; margin-right: 12px;">&larr; Tools</a>
+    Admin
+  </h1>
+  <div class="user-info">
+    <span id="userDisplay"></span>
+    <button onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('users')">Users</div>
+    <div class="tab" onclick="switchTab('audit')">Audit Log</div>
+  </div>
+
+  <!-- Users Tab -->
+  <div class="tab-content active" id="tab-users">
+    <div class="card">
+      <h2>Users &amp; Permissions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th class="toggle-cell">Engineer (AD)</th>
+            <th class="toggle-cell">Flag Admin</th>
+            <th class="toggle-cell">Deploy Admin</th>
+            <th class="toggle-cell">Admin</th>
+            <th>Last Login</th>
+          </tr>
+        </thead>
+        <tbody id="usersBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Audit Tab -->
+  <div class="tab-content" id="tab-audit">
+    <div class="card">
+      <h2>Audit Log</h2>
+      <div class="filter-row">
+        <select id="auditActionFilter" onchange="loadAudit(1)">
+          <option value="">All actions</option>
+          <option value="login">Login</option>
+          <option value="logout">Logout</option>
+          <option value="flag_create">Flag create</option>
+          <option value="flag_toggle">Flag toggle</option>
+          <option value="flag_archive">Flag archive</option>
+          <option value="deploy">Deploy</option>
+          <option value="promote">Promote</option>
+          <option value="rollback">Rollback</option>
+          <option value="permission_grant">Permission grant</option>
+          <option value="permission_revoke">Permission revoke</option>
+        </select>
+        <input type="text" id="auditUserFilter" placeholder="Filter by username" onkeyup="if(event.key==='Enter')loadAudit(1)">
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Detail</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody id="auditBody"></tbody>
+      </table>
+      <div class="pagination">
+        <button id="auditPrev" onclick="loadAudit(auditPage-1)" disabled>&larr; Prev</button>
+        <span id="auditPageInfo" style="padding:6px;color:var(--text-muted);font-size:13px;"></span>
+        <button id="auditNext" onclick="loadAudit(auditPage+1)">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentUser = null;
+  let auditPage = 1;
+
+  async function checkAuth() {
+    try {
+      const resp = await fetch('/auth/me');
+      if (resp.status === 401) { window.location.href = '/login.html'; return; }
+      currentUser = await resp.json();
+      if (!currentUser.permissions.can_admin) { window.location.href = '/'; return; }
+      document.getElementById('userDisplay').textContent = `${currentUser.display_name} (${currentUser.role})`;
+    } catch (e) { window.location.href = '/login.html'; }
+  }
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'audit') loadAudit(1);
+  }
+
+  async function loadUsers() {
+    const resp = await fetch('/admin/users');
+    if (!resp.ok) return;
+    const users = await resp.json();
+    const body = document.getElementById('usersBody');
+    body.innerHTML = users.map(u => `
+      <tr>
+        <td><strong>${u.display_name}</strong><br><span class="mono" style="color:var(--text-muted)">${u.username}</span></td>
+        <td class="mono">${u.email || '-'}</td>
+        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td class="toggle-cell"><input type="checkbox" ${u.is_engineer ? 'checked' : ''} disabled title="From Active Directory"></td>
+        <td class="toggle-cell"><input type="checkbox" ${u.is_flag_admin ? 'checked' : ''} onchange="updatePerm('${u.username}', 'is_flag_admin', this.checked)"></td>
+        <td class="toggle-cell"><input type="checkbox" ${u.is_deploy_admin ? 'checked' : ''} onchange="updatePerm('${u.username}', 'is_deploy_admin', this.checked)"></td>
+        <td class="toggle-cell"><input type="checkbox" ${u.is_admin ? 'checked' : ''} onchange="updatePerm('${u.username}', 'is_admin', this.checked)"></td>
+        <td class="mono" style="font-size:11px;color:var(--text-muted)">${u.last_login ? new Date(u.last_login).toLocaleString() : '-'}</td>
+      </tr>
+    `).join('');
+  }
+
+  async function updatePerm(username, field, value) {
+    const resp = await fetch(`/admin/users/${username}/permissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (resp.ok) {
+      loadUsers(); // refresh the table to show updated role
+    } else {
+      alert('Failed to update permission');
+      loadUsers(); // revert checkbox
+    }
+  }
+
+  async function loadAudit(page) {
+    auditPage = page;
+    const action = document.getElementById('auditActionFilter').value;
+    const username = document.getElementById('auditUserFilter').value;
+    const params = new URLSearchParams({ page, per_page: 50 });
+    if (action) params.set('action', action);
+    if (username) params.set('username', username);
+
+    const resp = await fetch(`/admin/audit?${params}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+
+    const body = document.getElementById('auditBody');
+    body.innerHTML = data.entries.map(e => `
+      <tr>
+        <td class="mono" style="font-size:11px;white-space:nowrap">${new Date(e.timestamp).toLocaleString()}</td>
+        <td class="mono">${e.username}</td>
+        <td><span class="badge badge-${e.action.includes('flag') ? 'flag_admin' : e.action.includes('deploy') || e.action.includes('promote') || e.action.includes('rollback') ? 'deploy_admin' : e.action.includes('permission') ? 'admin' : 'viewer'}">${e.action}</span></td>
+        <td>${e.target}</td>
+        <td style="font-size:12px;color:var(--text-muted)">${e.detail || '-'}</td>
+        <td class="mono" style="font-size:11px;color:var(--text-muted)">${e.ip}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">No entries</td></tr>';
+
+    const totalPages = Math.ceil(data.total / data.per_page);
+    document.getElementById('auditPageInfo').textContent = `Page ${data.page} of ${totalPages} (${data.total} entries)`;
+    document.getElementById('auditPrev').disabled = data.page <= 1;
+    document.getElementById('auditNext').disabled = data.page >= totalPages;
+  }
+
+  // Init
+  checkAuth().then(() => { loadUsers(); });
+</script>
+
+</body>
+</html>

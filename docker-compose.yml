@@ -52,17 +52,38 @@ services:
       - "9511:3000"
     restart: unless-stopped
 
-  dashboard:
-    build: ./dashboard
-    container_name: crown-mcp-dashboard
+  dashboard-api:
+    build: ./dashboard/api
+    container_name: crown-mcp-dashboard-api
     environment:
+      LDAP_SERVER: ${LDAP_SERVER:-192.168.164.223}
+      LDAP_PORT: ${LDAP_PORT:-389}
+      LDAP_DOMAIN: ${LDAP_DOMAIN:-crowngp.local}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-DC=crowngp,DC=local}
+      ENGINEER_GROUP_DN: ${ENGINEER_GROUP_DN:-CN=Dev-Env-Access,OU=Security Groups,DC=crowngp,DC=local}
+      UNLEASH_API_URL: http://unleash-api:3000
+      JENKINS_BASE_URL: http://host.docker.internal:8090
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_ORG: crowngasandpower
+      INITIAL_ADMIN: paul.berry-briggs
+      DB_PATH: /app/data/dashboard.db
+    volumes:
+      - ./data/dashboard-api:/app/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "9512:3000"
+      - "9514:3000"
     depends_on:
       - unleash-api
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    container_name: crown-mcp-dashboard
+    ports:
+      - "9512:3000"
+    depends_on:
+      - dashboard-api
     restart: unless-stopped
 
   bugs-api:

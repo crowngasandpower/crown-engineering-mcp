@@ -510,8 +510,10 @@
       Feature Flags
     </h1>
     <div class="header-actions">
+      <span id="userDisplay" style="color: var(--text-muted); font-size: 13px;"></span>
+      <button class="btn" onclick="logout()" style="font-size:12px">Logout</button>
       <button class="btn" onclick="loadFlags()" title="Refresh">Refresh</button>
-      <button class="btn btn-primary" onclick="openCreateModal()">Create Flag</button>
+      <button class="btn btn-primary" id="createFlagBtn" onclick="openCreateModal()">Create Flag</button>
     </div>
   </header>
 
@@ -892,8 +894,32 @@
       if (e.target === e.currentTarget) cancelConfirm();
     });
 
+    // --- Auth ---
+    let currentUser = null;
+
+    async function checkAuth() {
+      try {
+        const resp = await fetch('/auth/me');
+        if (resp.status === 401) { window.location.href = '/login.html'; return false; }
+        currentUser = await resp.json();
+        document.getElementById('userDisplay').textContent = `${currentUser.display_name} (${currentUser.role})`;
+
+        // Hide create button if viewer
+        if (!currentUser.permissions.can_create_flag) {
+          const btn = document.getElementById('createFlagBtn');
+          if (btn) btn.style.display = 'none';
+        }
+        return true;
+      } catch (e) { window.location.href = '/login.html'; return false; }
+    }
+
+    async function logout() {
+      await fetch('/auth/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    }
+
     // --- Init ---
-    loadFlags();
+    checkAuth().then(ok => { if (ok) loadFlags(); });
   </script>
 </body>
 </html>

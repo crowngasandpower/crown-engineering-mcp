@@ -247,7 +247,10 @@
     <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 14px; margin-right: 12px;">&larr; Tools</a>
     Production Deployments
   </h1>
-  <span style="color: var(--text-muted); font-size: 13px;">Crown Gas & Power</span>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="userDisplay" style="color: var(--text-muted); font-size: 13px;"></span>
+    <button onclick="logout()" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:13px;">Logout</button>
+  </div>
 </header>
 
 <div class="container">
@@ -321,10 +324,8 @@
     'synergy': 'apps-prod-2', 'wolfy': 'apps-prod-2',
   };
 
-  // Jenkins config — proxied through nginx to avoid CORS
-  const JENKINS_BASE = '/jenkins';
-  const JENKINS_USER = ''; // Set if auth required
-  const JENKINS_TOKEN = '';
+  // Auth
+  let currentUser = null;
 
   // GitHub config
   const GITHUB_ORG = 'crowngasandpower';
@@ -412,9 +413,10 @@
     log(status, 'info', `Triggering deploy: ${selectedApp} branch ${branch} to ${APPS[selectedApp]}...`);
 
     try {
-      const resp = await fetch(`${JENKINS_BASE}/job/prod-deploy/buildWithParameters?APP=${selectedApp}&BRANCH=${branch}`, {
+      const resp = await fetch('/deploy/preview', {
         method: 'POST',
-        headers: jenkinsHeaders(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: selectedApp, branch: branch }),
       });
 
       if (resp.ok || resp.status === 201) {
@@ -452,9 +454,10 @@
     log(status, 'info', `Promoting ${selectedApp} to live...`);
 
     try {
-      const resp = await fetch(`${JENKINS_BASE}/job/prod-promote/buildWithParameters?APP=${selectedApp}`, {
+      const resp = await fetch('/deploy/promote', {
         method: 'POST',
-        headers: jenkinsHeaders(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: selectedApp }),
       });
 
       if (resp.ok || resp.status === 201) {
@@ -484,9 +487,10 @@
     log(status, 'warn', `Rolling back ${selectedApp}...`);
 
     try {
-      const resp = await fetch(`${JENKINS_BASE}/job/prod-rollback/buildWithParameters?APP=${selectedApp}`, {
+      const resp = await fetch('/deploy/rollback', {
         method: 'POST',
-        headers: jenkinsHeaders(),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: selectedApp }),
       });
 
       if (resp.ok || resp.status === 201) {
@@ -504,12 +508,25 @@
 
   // --- Helpers ---
 
-  function jenkinsHeaders() {
-    const headers = {};
-    if (JENKINS_USER && JENKINS_TOKEN) {
-      headers['Authorization'] = 'Basic ' + btoa(`${JENKINS_USER}:${JENKINS_TOKEN}`);
-    }
-    return headers;
+  async function checkAuth() {
+    try {
+      const resp = await fetch('/auth/me');
+      if (resp.status === 401) { window.location.href = '/login.html'; return false; }
+      currentUser = await resp.json();
+      document.getElementById('userDisplay').textContent = `${currentUser.display_name} (${currentUser.role})`;
+      if (!currentUser.permissions.can_deploy) {
+        document.getElementById('deployBtn').disabled = true;
+        document.getElementById('deployBtn').textContent = 'No deploy permission';
+        document.getElementById('promoteBtn').disabled = true;
+        document.getElementById('rollbackBtn').disabled = true;
+      }
+      return true;
+    } catch (e) { window.location.href = '/login.html'; return false; }
+  }
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    window.location.href = '/login.html';
   }
 
   function log(el, level, msg) {
@@ -519,7 +536,7 @@
   }
 
   // --- Init ---
-  renderAppGrid();
+  checkAuth().then(ok => { if (ok) renderAppGrid(); });
 </script>
 
 </body>
