@@ -55,6 +55,10 @@ services:
   dashboard:
     build: ./dashboard
     container_name: crown-mcp-dashboard
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "9512:3000"
     depends_on:
@@ -73,17 +77,6 @@ services:
       JIRA_PROJECT: ${JIRA_PROJECT:-CT}
     ports:
       - "9513:3000"
-    restart: unless-stopped
-
-  deployments:
-    build: ./deployments
-    container_name: crown-mcp-deployments
-    environment:
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "9517:3000"
     restart: unless-stopped
 
   mcp-server:

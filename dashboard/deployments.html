@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deployments - Crown Engineering</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-hover: #222632;
+      --border: #2a2e3b;
+      --text: #e1e4eb;
+      --text-muted: #8b8fa3;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.12);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.12);
+      --yellow: #eab308;
+      --yellow-bg: rgba(234, 179, 8, 0.12);
+      --blue: #3b82f6;
+      --blue-bg: rgba(59, 130, 246, 0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 26px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1::before { content: "\1F680"; }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 32px 40px;
+    }
+
+    /* --- Cards --- */
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    .card h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: var(--text);
+    }
+
+    /* --- Form elements --- */
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    select, input[type="text"] {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 16px;
+      appearance: none;
+    }
+
+    select:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* --- Buttons --- */
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-deploy {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-deploy:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-promote {
+      background: var(--green);
+      color: white;
+    }
+
+    .btn-promote:hover:not(:disabled) {
+      background: #16a34a;
+    }
+
+    .btn-rollback {
+      background: var(--red);
+      color: white;
+    }
+
+    .btn-rollback:hover:not(:disabled) {
+      background: #dc2626;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    /* --- Status --- */
+
+    .status-bar {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 16px;
+      font-size: 13px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .status-bar.visible { display: block; }
+
+    .status-bar .info { color: var(--blue); }
+    .status-bar .success { color: var(--green); }
+    .status-bar .error { color: var(--red); }
+    .status-bar .warn { color: var(--yellow); }
+
+    /* --- App grid --- */
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .app-chip {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .app-chip:hover {
+      border-color: var(--accent);
+      background: var(--surface-hover);
+    }
+
+    .app-chip.selected {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--accent-hover);
+      font-weight: 600;
+    }
+
+    /* --- Loading spinner --- */
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .server-badge {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--surface-hover);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>
+    <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 14px; margin-right: 12px;">&larr; Tools</a>
+    Production Deployments
+  </h1>
+  <span style="color: var(--text-muted); font-size: 13px;">Crown Gas & Power</span>
+</header>
+
+<div class="container">
+
+  <!-- Step 1: Select App -->
+  <div class="card">
+    <h2>1. Select Application</h2>
+    <div class="app-grid" id="appGrid"></div>
+    <div id="selectedAppInfo" style="color: var(--text-muted); font-size: 13px;"></div>
+  </div>
+
+  <!-- Step 2: Select Branch & Deploy -->
+  <div class="card" id="deployCard" style="opacity: 0.4; pointer-events: none;">
+    <h2>2. Deploy to Preview</h2>
+    <div class="form-row">
+      <div>
+        <label>Branch</label>
+        <select id="branchSelect">
+          <option value="">Select an app first...</option>
+        </select>
+      </div>
+      <div style="display: flex; align-items: end;">
+        <button class="btn btn-deploy" id="deployBtn" disabled onclick="triggerDeploy()">
+          Deploy to Preview
+        </button>
+      </div>
+    </div>
+    <div id="deployStatus" class="status-bar"></div>
+  </div>
+
+  <!-- Step 3: Promote or Rollback -->
+  <div class="card" id="promoteCard" style="opacity: 0.4; pointer-events: none;">
+    <h2>3. Promote or Rollback</h2>
+    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 16px;">
+      Once you've tested the preview at <code id="previewUrl" style="color: var(--accent);">next.{app}.apps.crown</code>,
+      promote it to live or rollback to the previous release.
+    </p>
+    <div class="btn-group">
+      <button class="btn btn-promote" id="promoteBtn" onclick="triggerPromote()">
+        Promote to Live
+      </button>
+      <button class="btn btn-rollback" id="rollbackBtn" onclick="triggerRollback()">
+        Rollback
+      </button>
+    </div>
+    <div id="promoteStatus" class="status-bar"></div>
+  </div>
+
+</div>
+
+<script>
+  // App-to-server mapping (matches jenkins-pipelines/prod-deployments/config.groovy)
+  const APPS = {
+    // apps-prod-1
+    'billy': 'apps-prod-1', 'ces-elec': 'apps-prod-1',
+    'cva-dataflow-validation': 'apps-prod-1', 'dds': 'apps-prod-1',
+    'dds-elec': 'apps-prod-1', 'doc-master': 'apps-prod-1',
+    'doc-master-elec': 'apps-prod-1', 'eps': 'apps-prod-1',
+    'esema': 'apps-prod-1', 'gateway': 'apps-prod-1',
+    'gateway-elec': 'apps-prod-1', 'jigsaw-elec': 'apps-prod-1',
+    'multisite-manager': 'apps-prod-1', 'pims': 'apps-prod-1',
+    'pims-elec': 'apps-prod-1', 'portal-gas-admin': 'apps-prod-1',
+    'portal-power-admin': 'apps-prod-1', 'sanctions': 'apps-prod-1',
+    'settlements-elec': 'apps-prod-1', 'wolfy-elec': 'apps-prod-1',
+    // apps-prod-2
+    'aerio': 'apps-prod-2', 'ces': 'apps-prod-2',
+    'complaintstracker': 'apps-prod-2', 'gps': 'apps-prod-2',
+    'jigsaw': 'apps-prod-2', 'meter-data-manager': 'apps-prod-2',
+    'reporting': 'apps-prod-2', 'revenue-dollar': 'apps-prod-2',
+    'revenue-dollar-elec': 'apps-prod-2', 'settlements': 'apps-prod-2',
+    'synergy': 'apps-prod-2', 'wolfy': 'apps-prod-2',
+  };
+
+  // Jenkins config — proxied through nginx to avoid CORS
+  const JENKINS_BASE = '/jenkins';
+  const JENKINS_USER = ''; // Set if auth required
+  const JENKINS_TOKEN = '';
+
+  // GitHub config
+  const GITHUB_ORG = 'crowngasandpower';
+
+  let selectedApp = null;
+
+  // --- Render app grid ---
+  function renderAppGrid() {
+    const grid = document.getElementById('appGrid');
+    Object.keys(APPS).sort().forEach(app => {
+      const chip = document.createElement('div');
+      chip.className = 'app-chip';
+      chip.textContent = app;
+      chip.onclick = () => selectApp(app);
+      grid.appendChild(chip);
+    });
+  }
+
+  // --- Select app ---
+  async function selectApp(app) {
+    selectedApp = app;
+
+    // Update chip styling
+    document.querySelectorAll('.app-chip').forEach(c => c.classList.remove('selected'));
+    event.target.classList.add('selected');
+
+    // Show server info
+    document.getElementById('selectedAppInfo').innerHTML =
+      `<strong>${app}</strong> <span class="server-badge">${APPS[app]}</span>`;
+
+    // Enable deploy card
+    const deployCard = document.getElementById('deployCard');
+    deployCard.style.opacity = '1';
+    deployCard.style.pointerEvents = 'auto';
+
+    // Update preview URL
+    document.getElementById('previewUrl').textContent = `next.${app}.apps.crown`;
+
+    // Load branches
+    await loadBranches(app);
+  }
+
+  // --- Load branches from GitHub ---
+  async function loadBranches(app) {
+    const select = document.getElementById('branchSelect');
+    select.innerHTML = '<option value="">Loading branches...</option>';
+    document.getElementById('deployBtn').disabled = true;
+
+    try {
+      const resp = await fetch(`/github/repos/${GITHUB_ORG}/${app}/branches?per_page=100`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const branches = await resp.json();
+
+      select.innerHTML = '<option value="">Select a branch...</option>';
+      // Put main first, then sort the rest
+      const mainBranch = branches.find(b => b.name === 'main');
+      const others = branches.filter(b => b.name !== 'main').sort((a, b) => a.name.localeCompare(b.name));
+
+      if (mainBranch) {
+        select.innerHTML += `<option value="main">main</option>`;
+      }
+      others.forEach(b => {
+        select.innerHTML += `<option value="${b.name}">${b.name}</option>`;
+      });
+
+      select.onchange = () => {
+        document.getElementById('deployBtn').disabled = !select.value;
+      };
+    } catch (e) {
+      select.innerHTML = `<option value="">Failed to load branches: ${e.message}</option>`;
+    }
+  }
+
+  // --- Trigger Jenkins deploy ---
+  async function triggerDeploy() {
+    const branch = document.getElementById('branchSelect').value;
+    if (!selectedApp || !branch) return;
+
+    const btn = document.getElementById('deployBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Deploying...';
+
+    const status = document.getElementById('deployStatus');
+    status.classList.add('visible');
+    log(status, 'info', `Triggering deploy: ${selectedApp} branch ${branch} to ${APPS[selectedApp]}...`);
+
+    try {
+      const resp = await fetch(`${JENKINS_BASE}/job/prod-deploy/buildWithParameters?APP=${selectedApp}&BRANCH=${branch}`, {
+        method: 'POST',
+        headers: jenkinsHeaders(),
+      });
+
+      if (resp.ok || resp.status === 201) {
+        log(status, 'success', `Deploy triggered successfully.`);
+        log(status, 'info', `Preview will be available at: https://next.${selectedApp}.apps.crown`);
+        log(status, 'info', `Check Jenkins for build progress.`);
+
+        // Enable promote card
+        const promoteCard = document.getElementById('promoteCard');
+        promoteCard.style.opacity = '1';
+        promoteCard.style.pointerEvents = 'auto';
+      } else {
+        const text = await resp.text();
+        log(status, 'error', `Jenkins returned HTTP ${resp.status}: ${text}`);
+      }
+    } catch (e) {
+      log(status, 'error', `Failed to trigger deploy: ${e.message}`);
+    }
+
+    btn.innerHTML = 'Deploy to Preview';
+    btn.disabled = false;
+  }
+
+  // --- Trigger Jenkins promote ---
+  async function triggerPromote() {
+    if (!selectedApp) return;
+    if (!confirm(`Promote ${selectedApp} to live? This will replace the current production release.`)) return;
+
+    const btn = document.getElementById('promoteBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Promoting...';
+
+    const status = document.getElementById('promoteStatus');
+    status.classList.add('visible');
+    log(status, 'info', `Promoting ${selectedApp} to live...`);
+
+    try {
+      const resp = await fetch(`${JENKINS_BASE}/job/prod-promote/buildWithParameters?APP=${selectedApp}`, {
+        method: 'POST',
+        headers: jenkinsHeaders(),
+      });
+
+      if (resp.ok || resp.status === 201) {
+        log(status, 'success', `Promote triggered. ${selectedApp}.apps.crown will update shortly.`);
+      } else {
+        log(status, 'error', `Jenkins returned HTTP ${resp.status}`);
+      }
+    } catch (e) {
+      log(status, 'error', `Failed: ${e.message}`);
+    }
+
+    btn.innerHTML = 'Promote to Live';
+    btn.disabled = false;
+  }
+
+  // --- Trigger Jenkins rollback ---
+  async function triggerRollback() {
+    if (!selectedApp) return;
+    if (!confirm(`Rollback ${selectedApp}? This will revert to the previous release.`)) return;
+
+    const btn = document.getElementById('rollbackBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Rolling back...';
+
+    const status = document.getElementById('promoteStatus');
+    status.classList.add('visible');
+    log(status, 'warn', `Rolling back ${selectedApp}...`);
+
+    try {
+      const resp = await fetch(`${JENKINS_BASE}/job/prod-rollback/buildWithParameters?APP=${selectedApp}`, {
+        method: 'POST',
+        headers: jenkinsHeaders(),
+      });
+
+      if (resp.ok || resp.status === 201) {
+        log(status, 'success', `Rollback triggered. Previous release will be restored.`);
+      } else {
+        log(status, 'error', `Jenkins returned HTTP ${resp.status}`);
+      }
+    } catch (e) {
+      log(status, 'error', `Failed: ${e.message}`);
+    }
+
+    btn.innerHTML = 'Rollback';
+    btn.disabled = false;
+  }
+
+  // --- Helpers ---
+
+  function jenkinsHeaders() {
+    const headers = {};
+    if (JENKINS_USER && JENKINS_TOKEN) {
+      headers['Authorization'] = 'Basic ' + btoa(`${JENKINS_USER}:${JENKINS_TOKEN}`);
+    }
+    return headers;
+  }
+
+  function log(el, level, msg) {
+    const time = new Date().toLocaleTimeString();
+    el.innerHTML += `<span class="${level}">[${time}] ${msg}</span>\n`;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // --- Init ---
+  renderAppGrid();
+</script>
+
+</body>
+</html>
