@@ -155,9 +155,19 @@ async def logout(request: Request, response: Response, db: DBSession = Depends(g
 
 @app.get("/auth/me")
 async def me(response: Response, user: User = Depends(get_current_user)):
-    # X-Auth-User header is consumed by the Grafana auth proxy (nginx
-    # auth_request_set reads it from the subrequest response).
+    # X-Auth-User and X-Auth-Groups headers are consumed by the Grafana
+    # and Jenkins auth proxies (nginx auth_request_set reads them from
+    # the subrequest response).
     response.headers["X-Auth-User"] = user.username
+
+    # Build groups list for Jenkins role mapping
+    groups = ["authenticated"]
+    perms = compute_permissions(user)
+    if perms["can_deploy"]:
+        groups.append("deployers")
+    if perms["can_admin"]:
+        groups.append("jenkins-admins")
+    response.headers["X-Auth-Groups"] = ",".join(groups)
     return {
         "username": user.username,
         "display_name": user.display_name,
