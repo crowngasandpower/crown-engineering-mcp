@@ -154,7 +154,10 @@ async def logout(request: Request, response: Response, db: DBSession = Depends(g
 
 
 @app.get("/auth/me")
-async def me(user: User = Depends(get_current_user)):
+async def me(response: Response, user: User = Depends(get_current_user)):
+    # X-Auth-User header is consumed by the Grafana auth proxy (nginx
+    # auth_request_set reads it from the subrequest response).
+    response.headers["X-Auth-User"] = user.username
     return {
         "username": user.username,
         "display_name": user.display_name,
