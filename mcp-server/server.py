@@ -413,6 +413,12 @@ async def claim_bug(assignee_email: str) -> dict:
             f"{BUGS_API_URL}/claim",
             json={"assignee_email": assignee_email},
         )
+        if resp.status_code == 404:
+            # Business-logic 404 — no viable bugs found. Return the
+            # detail from the bugs-api so the caller sees what happened
+            # (e.g. how many were checked, which were blocked).
+            detail = resp.json().get("detail", "No viable bugs found")
+            return {"viable": False, "message": detail, "blocked_keys": []}
         resp.raise_for_status()
         return resp.json()
 
