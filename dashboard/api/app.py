@@ -171,8 +171,9 @@ async def me(response: Response, user: User = Depends(get_current_user)):
     response.headers["X-Auth-Groups"] = ",".join(groups)
 
     # Grafana role header — maps portal roles to Grafana org roles
+    # Grafana org roles: Admin, Editor, Viewer (not GrafanaAdmin)
     if role == "admin":
-        response.headers["X-Auth-Grafana-Role"] = "GrafanaAdmin"
+        response.headers["X-Auth-Grafana-Role"] = "Admin"
     elif role in ("engineer", "flag_admin", "deploy_admin"):
         response.headers["X-Auth-Grafana-Role"] = "Editor"
     else:
