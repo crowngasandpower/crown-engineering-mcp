@@ -118,6 +118,9 @@ For each issue found, respond with a JSON object in this exact format:
 
 If the diff is clean with no issues, respond with verdict "comment", a positive summary, and an empty issues array.
 
+If there ARE issues, end the summary with this line:
+"If you disagree with any of these findings, you can suppress them by adding a comment before the flagged code: \`// @ai-review-ignore: <reason>\`"
+
 Only comment on lines that are ADDED (lines starting with +) in the diff. Do not comment on removed lines or unchanged context.
 Respond ONLY with the JSON object, no markdown fences or other text.
 SYSPROMPT

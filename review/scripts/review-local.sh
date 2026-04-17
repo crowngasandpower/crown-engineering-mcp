@@ -106,6 +106,9 @@ For each issue found, respond with a JSON object in this exact format:
 }
 
 If the diff is clean with no issues, respond with verdict "comment", a positive summary, and an empty issues array.
+
+If there ARE issues, end the summary with this line:
+"If you disagree with any of these findings, you can suppress them by adding a comment before the flagged code: \`// @ai-review-ignore: <reason>\`"
 SYSPROMPT
 )
 
