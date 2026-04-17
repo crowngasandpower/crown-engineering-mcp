@@ -66,9 +66,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://poc-containers:9512",
-        "https://tools.poc.crowngasandpower.co.uk",
-        "https://grafana.poc.crowngasandpower.co.uk",
-        "https://jenkins.poc.crowngasandpower.co.uk",
+        "http://tools.poc.crowngasandpower.co.uk",
+        "http://grafana.poc.crowngasandpower.co.uk",
+        "http://jenkins.poc.crowngasandpower.co.uk",
     ],
     allow_methods=["*"],
     allow_headers=["*"],
@@ -132,7 +132,7 @@ async def login(body: LoginRequest, request: Request, response: Response, db: DB
         path="/",
         max_age=8 * 3600,
         domain=".poc.crowngasandpower.co.uk",
-        secure=True,
+        secure=False,
     )
 
     return {

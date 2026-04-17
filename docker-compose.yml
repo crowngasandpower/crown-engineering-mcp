@@ -88,9 +88,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.tools.rule=Host(`tools.poc.crowngasandpower.co.uk`)"
-      - "traefik.http.routers.tools.entrypoints=websecure"
-      - "traefik.http.routers.tools.tls=true"
-      - "traefik.http.routers.tools.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tools.entrypoints=web"
       - "traefik.http.services.tools.loadbalancer.server.port=3000"
       - "traefik.docker.network=jenkins-poc_traefik_public"
     depends_on:
