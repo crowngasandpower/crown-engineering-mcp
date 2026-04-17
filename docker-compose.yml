@@ -75,6 +75,15 @@ services:
       - "9513:3000"
     restart: unless-stopped
 
+  deployments:
+    build: ./deployments
+    container_name: crown-mcp-deployments
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9517:3000"
+    restart: unless-stopped
+
   mcp-server:
     build: ./mcp-server
     container_name: crown-mcp-server
