@@ -336,7 +336,7 @@ async def claim_bug(req: ClaimRequest):
         jql = (
             f"project = {JIRA_PROJECT} AND issuetype = Bug "
             f'AND statusCategory = "To Do" '
-            f'AND labels NOT IN ("{SKIP_LABEL}") '
+            f'AND (labels IS EMPTY OR labels NOT IN ("{SKIP_LABEL}")) '
             f"ORDER BY priority ASC, created ASC"
         )
         resp = await client.post(
