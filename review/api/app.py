@@ -56,6 +56,7 @@ IMPORTANT RULES:
   - Hypothetical attack vectors that require the attacker to already control infrastructure (DNS spoofing, proxy header injection)
   - Missing features or enhancements ("consider also checking X", "you could add Y")
   - Suggesting auth checks should be duplicated in controllers when route middleware already provides auth — Laravel's middleware IS the auth layer
+  - Flagging routes in routes/web.php as "missing auth middleware" just because you don't see an auth middleware group in the diff. In Laravel, auth middleware is often applied globally to the entire web.php file in RouteServiceProvider (e.g. Route::middleware(['web', 'auth:synergy'])->group(base_path('routes/web.php'))). The diff won't show this — it's in a file that isn't changed. Unless you can see from the diff that routes are explicitly placed OUTSIDE a middleware group that other routes in the same file are inside, do not assume routes lack auth.
   - Speculation about what might happen "if the route were ever changed" or "if middleware were removed" — review the code as it IS, not hypothetical future states
   - "config() might return null" warnings when the PR is moving env() calls into config files — this is the same null risk env() already had, not a new bug. The migration from env() to config() is intentionally mechanical.
   - config values used as database/table names in cross-database joins (e.g. config('database.external_databases.synergy') . '.users') — these cannot be parameterised in SQL and are trusted infrastructure config, not user input
