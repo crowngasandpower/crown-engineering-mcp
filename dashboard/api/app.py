@@ -160,14 +160,23 @@ async def me(response: Response, user: User = Depends(get_current_user)):
     # the subrequest response).
     response.headers["X-Auth-User"] = user.username
 
-    # Build groups list for Jenkins role mapping
+    # Build groups list for Jenkins and Grafana role mapping
     groups = ["authenticated"]
     perms = compute_permissions(user)
+    role = compute_role(user)
     if perms["can_deploy"]:
         groups.append("deployers")
     if perms["can_admin"]:
         groups.append("jenkins-admins")
     response.headers["X-Auth-Groups"] = ",".join(groups)
+
+    # Grafana role header — maps portal roles to Grafana org roles
+    if role == "admin":
+        response.headers["X-Auth-Grafana-Role"] = "GrafanaAdmin"
+    elif role in ("engineer", "flag_admin", "deploy_admin"):
+        response.headers["X-Auth-Grafana-Role"] = "Editor"
+    else:
+        response.headers["X-Auth-Grafana-Role"] = "Viewer"
     return {
         "username": user.username,
         "display_name": user.display_name,
