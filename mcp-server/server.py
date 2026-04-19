@@ -27,7 +27,7 @@ Current tools:
   - claim_bug: find and claim the next actionable bug from the CT
     Jira board (wraps bugs-api POST /claim at port 9513).
   - remember: store a piece of knowledge in shared team memory
-    (wraps memory-api POST /remember at port 9514).
+    (wraps memory-api POST /remember at port 9517).
   - recall: retrieve semantically similar entries from team memory
     (wraps memory-api POST /recall).
 

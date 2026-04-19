@@ -8,7 +8,7 @@ Engineers rarely call this API directly. The usual entry points are the
 
 ## HTTP contract
 
-Port `9514` externally, `3000` internally.
+Port `9517` externally, `3000` internally.
 
 ### `POST /remember`
 

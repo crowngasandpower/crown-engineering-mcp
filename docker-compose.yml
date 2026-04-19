@@ -128,7 +128,9 @@ services:
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       VOYAGE_API_KEY: ${VOYAGE_API_KEY}
     ports:
-      - "9514:3000"
+      # 9514-9516 are taken by monitoring-* containers (blackbox, vmware,
+      # idrac exporters). 9517 is the next free slot.
+      - "9517:3000"
     depends_on:
       - qdrant
     restart: unless-stopped
