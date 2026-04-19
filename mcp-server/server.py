@@ -26,6 +26,10 @@ Current tools:
     is complete (wraps unleash-api DELETE /flags/{name}).
   - claim_bug: find and claim the next actionable bug from the CT
     Jira board (wraps bugs-api POST /claim at port 9513).
+  - remember: store a piece of knowledge in shared team memory
+    (wraps memory-api POST /remember at port 9514).
+  - recall: retrieve semantically similar entries from team memory
+    (wraps memory-api POST /recall).
 
 Engineers register this server in ~/.claude/settings.json:
   {
@@ -48,6 +52,7 @@ from starlette.routing import Mount
 REVIEW_API_URL = os.environ.get("REVIEW_API_URL", "http://review-api:3000")
 UNLEASH_API_URL = os.environ.get("UNLEASH_API_URL", "http://unleash-api:3000")
 BUGS_API_URL = os.environ.get("BUGS_API_URL", "http://bugs-api:3000")
+MEMORY_API_URL = os.environ.get("MEMORY_API_URL", "http://memory-api:3000")
 PORT = int(os.environ.get("PORT", "3000"))
 REVIEW_TIMEOUT_SECONDS = float(os.environ.get("REVIEW_TIMEOUT_SECONDS", "180"))
 
@@ -444,6 +449,94 @@ async def skip_bug(key: str, reason: str) -> dict:
         resp = await client.post(
             f"{BUGS_API_URL}/skip",
             json={"key": key, "reason": reason},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def remember(
+    content: str,
+    tags: list[str] | None = None,
+    source: str | None = None,
+    author: str | None = None,
+) -> dict:
+    """Store a piece of knowledge in the shared team memory.
+
+    Use this to persist non-obvious information that future sessions (for
+    you or other engineers) will benefit from. Good candidates:
+      - architectural decisions and the reasoning behind them
+      - gotchas discovered while debugging (e.g. schema quirks, race
+        conditions, cross-app coupling surprises)
+      - post-incident findings and their fixes
+      - onboarding context that isn't captured elsewhere
+
+    Bad candidates:
+      - secrets, credentials, or customer PII (memory is team-wide)
+      - ephemeral task state (use a plan or the conversation)
+      - information already documented in code or a CLAUDE.md
+
+    Args:
+        content: The knowledge to store. Self-contained — a later reader
+                 shouldn't need the conversation it came from.
+        tags: Optional topical tags, e.g. ["eps", "datasheet", "gotcha"].
+              Used to filter recall() results.
+        source: Optional pointer to where this came from (Jira key, PR
+                URL, Confluence page, etc.). Helps verify currency.
+        author: Optional — who added it. Defaults to unattributed.
+
+    Returns:
+        {"id": "<uuid>", "stored_at": "<iso8601>"}
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{MEMORY_API_URL}/remember",
+            json={
+                "content": content,
+                "tags": tags or [],
+                "source": source,
+                "author": author,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+@mcp.tool()
+async def recall(
+    query: str,
+    top_k: int = 5,
+    tags: list[str] | None = None,
+) -> dict:
+    """Retrieve semantically similar entries from team memory.
+
+    Use this when you're about to work on something and suspect someone
+    (you or another engineer) has already hit related ground. Example
+    prompts that should trigger recall:
+
+      - "Has anyone dealt with the datasheet CoT path before?"
+      - "What did we decide about Horizon vs supervisor for queues?"
+      - "Why is EPS single-threaded on the trading queue?"
+
+    Results are scored by cosine similarity of Voyage embeddings — higher
+    score = closer match. Treat the top hit as a lead, not a verdict:
+    verify against current code before acting on it.
+
+    Args:
+        query: Natural-language question or topic.
+        top_k: How many hits to return (1–50, default 5).
+        tags: Optional — restrict to entries tagged with any of these.
+
+    Returns:
+        {"hits": [
+          {"id", "score", "content", "tags", "source", "author", "stored_at"},
+          ...
+        ]}
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{MEMORY_API_URL}/recall",
+            json={"query": query, "top_k": top_k, "tags": tags},
         )
         resp.raise_for_status()
         return resp.json()

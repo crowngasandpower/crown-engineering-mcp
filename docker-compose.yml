@@ -109,6 +109,30 @@ services:
       - "9513:3000"
     restart: unless-stopped
 
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: crown-mcp-qdrant
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"
+    restart: unless-stopped
+
+  memory-api:
+    build: ./memory/api
+    container_name: crown-mcp-memory-api
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+    ports:
+      - "9514:3000"
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
   mcp-server:
     build: ./mcp-server
     container_name: crown-mcp-server
@@ -116,12 +140,14 @@ services:
       REVIEW_API_URL: http://review-api:3000
       UNLEASH_API_URL: http://unleash-api:3000
       BUGS_API_URL: http://bugs-api:3000
+      MEMORY_API_URL: http://memory-api:3000
     ports:
       - "9510:3000"
     depends_on:
       - review-api
       - unleash-api
       - bugs-api
+      - memory-api
     restart: unless-stopped
 
 networks:
